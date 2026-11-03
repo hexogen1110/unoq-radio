@@ -34,6 +34,7 @@ To add a new source (for example AirPlay via `shairport-sync --output=stdout`, l
 | `deploy/install.sh` | Installer |
 | `deploy/unoq-radio.service` | systemd user service |
 | `deploy/fix_headless.sh` | One-off fix for boards installed with an older installer (WirePlumber headless mode, LED socket permission) |
+| `deploy/update.sh` | Pull the latest code, upload the sketch if it changed, restart the service |
 | `deploy/diag.sh` | Read-only diagnostics script (works even when the service is down) |
 
 ## Installation (first time)
@@ -79,10 +80,10 @@ Optional: the official Bridge Python package `arduino_app_bricks` is not require
 After you `git push` changes from your PC, run on the UNO Q:
 
 ```bash
-cd ~/unoq-radio
-git pull
-systemctl --user restart unoq-radio
+bash ~/unoq-radio/deploy/update.sh
 ```
+
+It fetches the latest commit, re-uploads the sketch if `sketch/` changed, and restarts the service. It also works from `adb shell` (after `su - arduino`) because it sets `XDG_RUNTIME_DIR` itself. The manual equivalent is `git pull && systemctl --user restart unoq-radio`.
 
 | Changed files | Extra step |
 |---|---|
