@@ -37,6 +37,8 @@ class SpotifySource:
         self.position_ms = 0
         self.position_ts = 0.0
         self._gen = 0                        # process generation: ignore events / data from old processes
+        self.version = ""
+        self.key_errors = 0                  # consecutive "audio key" failures (Spotify refused to decrypt)
         self._lock = threading.Lock()
 
     # ---------------- Process management ----------------
@@ -55,6 +57,17 @@ class SpotifySource:
                 return
             self._gen += 1
             gen = self._gen
+            try:                                     # git checkouts from Windows lose the exec bit;
+                os.chmod(self.event_script, 0o755)   # librespot runs --onevent directly, so it needs it
+            except OSError as e:
+                log.warning("cannot chmod %s: %s", self.event_script, e)
+            if not self.version:
+                try:
+                    v = subprocess.run([self.cfg.get("binary", "librespot"), "--version"],
+                                       capture_output=True, text=True, timeout=5)
+                    self.version = (v.stdout or v.stderr).strip().splitlines()[0][:60]
+                except Exception:  # noqa: BLE001
+                    self.version = "?"
             cache = Path.home() / ".cache" / "unoq-radio" / "librespot"
             cache.mkdir(parents=True, exist_ok=True)
             cmd = [self.cfg.get("binary", "librespot"),
@@ -100,6 +113,8 @@ class SpotifySource:
                 break
             if gen != self._gen:
                 break
+            if self.key_errors:
+                self.key_errors, self.error = 0, ""         # audio is flowing again
             if not self.active and not self.suppress:
                 # play pressed on the phone while the radio is active → switch to Spotify (last action wins)
                 self.on_activate(self.name)
@@ -117,8 +132,17 @@ class SpotifySource:
     def _stderr(self, proc):
         for line in iter(proc.stderr.readline, b""):
             s = line.decode("utf-8", "replace").rstrip()
-            if " ERROR " in s or "error" in s.lower()[:40]:
-                log.warning("librespot: %s", s)
+            if "audio key" in s.lower() and "error" in s.lower():
+                self.key_errors += 1
+                if self.key_errors in (1, 20, 200):          # don't flood the log: every track fails
+                    log.warning("librespot: %s (x%d)", s, self.key_errors)
+                if self.key_errors >= 2:
+                    self.error = ("Spotify refused the audio decryption key for every track, so nothing "
+                                  "plays. This is a known Spotify-side restriction on some accounts "
+                                  "(librespot issue #1649), not a problem with the UNO Q.")
+            elif " ERROR " in s or "error" in s.lower()[:40]:
+                if "unable to load track" not in s and "Symphonia" not in s:
+                    log.warning("librespot: %s", s)
 
     # ---------------- Events (called from /api/spotify/event) ----------------
     def handle_event(self, ev):
@@ -161,4 +185,4 @@ class SpotifySource:
                 "running": bool(self.proc and self.proc.poll() is None),
                 "device_name": self.cfg.get("device_name", "UNO Q Radio"),
                 "state": self.state, "track": self.track, "position_ms": pos,
-                "client": self.client, "user": self.user, "error": self.error}
+                "client": self.client, "user": self.user, "error": self.error, "version": self.version}

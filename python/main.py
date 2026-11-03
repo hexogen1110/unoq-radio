@@ -20,6 +20,7 @@ from bt import BtManager
 from led import STYLES, Led
 from src_radio import RadioSource
 from src_spotify import SpotifySource
+from stations import StationStore
 
 BASE = Path(__file__).resolve().parent
 STATIONS_DEFAULT = BASE / "stations.json"          # default list shipped in the repo
@@ -50,8 +51,7 @@ DEFAULT_CONFIG = {
     "spotify": {"enabled": True, "device_name": "UNO Q Radio", "bitrate": 320, "binary": "librespot"},
 }
 config = load(CONFIG_FILE, DEFAULT_CONFIG)
-stations = load(STATIONS_FILE, None) or load(STATIONS_DEFAULT, [])
-_stations_lock = threading.Lock()
+stations = StationStore(STATIONS_DEFAULT, STATIONS_FILE)
 
 
 def save_config():
@@ -150,6 +150,10 @@ def diag_text():
     return "\n\n".join(parts)
 
 
+def stations_payload():
+    return {"stations": stations.all(), "genres": stations.genres(), "checking": stations.checking}
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass
@@ -180,7 +184,7 @@ class Handler(BaseHTTPRequestHandler):
         elif p == "/api/status":
             self._json(full_status())
         elif p == "/api/stations":
-            self._json(stations)
+            self._json(stations_payload())
         elif p == "/api/bt/status":
             mac = config.get("bt_mac")
             self._json(bt.info(mac) if mac else {"mac": "", "connected": False, "paired": False, "name": ""})
@@ -207,7 +211,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # ---- Playback control ----
         if p == "/api/play":                              # play a station
-            st = next((s for s in stations if s["id"] == d.get("id")), None)
+            st = stations.get(d.get("id"))
             if not st:
                 return self._json({"error": "station not found"}, 404)
             mgr.activate("radio")
@@ -236,16 +240,17 @@ class Handler(BaseHTTPRequestHandler):
             name, url = d.get("name", "").strip(), d.get("url", "").strip()
             if not name or not url.startswith(("http://", "https://")):
                 return self._json({"error": "Name and http(s) URL are required"}, 400)
-            with _stations_lock:
-                new_id = max([s["id"] for s in stations] + [0]) + 1
-                stations.append({"id": new_id, "name": name, "url": url})
-                save(STATIONS_FILE, stations)
-            self._json(stations)
+            stations.add(name, url, d.get("genre", "").strip()[:30])
+            self._json(stations_payload())
         elif p == "/api/stations/delete":
-            with _stations_lock:
-                stations[:] = [s for s in stations if s["id"] != d.get("id")]
-                save(STATIONS_FILE, stations)
-            self._json(stations)
+            stations.delete(d.get("id"))
+            self._json(stations_payload())
+        elif p == "/api/stations/restore":                # bring back deleted default stations
+            stations.restore_defaults()
+            self._json(stations_payload())
+        elif p == "/api/stations/check":                  # background health check of every stream
+            stations.check_all()
+            self._json(stations_payload())
 
         # ---- Spotify ----
         elif p == "/api/spotify/event":                   # librespot --onevent (localhost only)

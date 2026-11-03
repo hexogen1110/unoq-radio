@@ -32,6 +32,13 @@
   li.st.active { color:var(--acc); font-weight:600; }
   li.st span { flex:1; }
   li.st .del { background:none; border:0; color:var(--mut); padding:4px 8px; }
+  li.st .hd { width:8px; height:8px; border-radius:50%; flex:none; background:#3a4150; }
+  li.st .hd.ok { background:var(--ok); } li.st .hd.bad { background:var(--err); }
+  li.st.dead span { color:var(--mut); text-decoration:line-through; }
+  .chips { display:flex; gap:6px; overflow-x:auto; padding-bottom:6px; margin-bottom:4px; }
+  .chips button { flex:none; padding:5px 12px; font-size:13px; border-radius:99px; }
+  .chips button.on { background:var(--acc); border-color:var(--acc); color:#06101f; font-weight:600; }
+  select { width:100%; background:#0f1218; color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:9px; font-size:15px; }
   .dev { display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line); }
   .dev:last-child { border-bottom:0; }
   .dev .ico { width:28px; height:28px; flex:none; color:var(--mut); }
@@ -126,14 +133,31 @@
   </section>
 
   <section class="card" id="paneRadio">
-    <div class="mut" style="margin-bottom:4px">Stations</div>
+    <div class="row" style="justify-content:space-between; margin-bottom:6px">
+      <span class="mut">Stations</span>
+      <span class="mut" id="stCount"></span>
+    </div>
+    <div class="chips" id="genres"></div>
     <ul id="list"></ul>
     <details style="margin-top:10px">
       <summary>Add station</summary>
       <div class="stack" style="margin-top:8px">
         <input type="text" id="newName" placeholder="Name">
         <input type="url" id="newUrl" placeholder="Stream URL http(s)://… (MP3 / AAC)">
+        <input type="text" id="newGenre" list="genreList" placeholder="Genre (e.g. Jazz)">
+        <datalist id="genreList"></datalist>
         <button id="btnAdd">Add</button>
+      </div>
+    </details>
+    <details style="margin-top:10px">
+      <summary>Manage stations</summary>
+      <div class="stack" style="margin-top:8px">
+        <div class="row" style="flex-wrap:wrap">
+          <button id="btnCheck">Check all streams</button>
+          <button id="btnRestore">Restore deleted defaults</button>
+        </div>
+        <label class="mut row" style="gap:6px"><input type="checkbox" id="hideDead"> Hide stations that failed the check</label>
+        <div class="mut" id="checkHint"></div>
       </div>
     </details>
   </section>
@@ -166,7 +190,7 @@ const api = (path, body) => fetch(path, body === undefined ? {} : {
   method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)
 }).then(r => r.json());
 
-let selected = null, stations = [], st = {};
+let selected = null, stations = [], genres = [], genre = "All", checking = false, st = {};
 
 // Spectrum grid 13 × 8
 const spec = $("spec");
@@ -180,18 +204,44 @@ function drawSpec(levels) {
     [...col.children].forEach((cell, r) => cell.classList.toggle("on", r < (levels[c] || 0))));
 }
 
+function setStations(r) {
+  stations = r.stations; genres = r.genres; checking = r.checking;
+  if (genre !== "All" && !genres.includes(genre)) genre = "All";
+  $("genres").innerHTML = "";
+  ["All", ...genres].forEach(g => {
+    const b = document.createElement("button");
+    b.textContent = g; b.className = g === genre ? "on" : "";
+    b.onclick = () => { genre = g; setStations({stations, genres, checking}); };
+    $("genres").appendChild(b);
+  });
+  $("genreList").innerHTML = genres.map(g => `<option value="${g.replace(/"/g, "&quot;")}">`).join("");
+  const done = stations.filter(s => s.health).length, bad = stations.filter(s => s.health && !s.health.ok).length;
+  $("btnCheck").disabled = checking;
+  $("btnCheck").innerHTML = checking ? '<span class="spin"></span> Checking…' : "Check all streams";
+  $("checkHint").textContent = checking ? `Checked ${done} of ${stations.length}…`
+    : (done ? `${done - bad} OK, ${bad} failed (red). Failed streams may be down temporarily or blocked in your region.` : "");
+  renderList();
+  if (checking) { clearTimeout(setStations.t); setStations.t = setTimeout(loadStations, 1500); }
+}
+const loadStations = () => api("/api/stations").then(setStations);
+
 function renderList() {
   const cur = st.source === "radio" && st.radio && st.radio.station && st.radio.station.id;
   $("list").innerHTML = "";
-  stations.forEach(s => {
+  const hideDead = $("hideDead").checked;
+  const shown = stations.filter(s => (genre === "All" || s.genre === genre) && !(hideDead && s.health && !s.health.ok));
+  $("stCount").textContent = `${shown.length} / ${stations.length}`;
+  shown.forEach(s => {
     const li = document.createElement("li");
-    li.className = "st" + (s.id === (selected ?? cur) ? " active" : "");
-    li.innerHTML = `<span></span><button class="del" title="Delete">✕</button>`;
+    const h = s.health;
+    li.className = "st" + (s.id === (selected ?? cur) ? " active" : "") + (h && !h.ok ? " dead" : "");
+    li.innerHTML = `<i class="hd${h ? (h.ok ? " ok" : " bad") : ""}"></i><span></span><button class="del" title="Delete">✕</button>`;
     li.querySelector("span").textContent = s.name;
+    if (h && !h.ok) li.title = "Check failed: " + h.error;
     li.onclick = () => { selected = s.id; api("/api/play", {id: s.id}).then(upd); };
     li.querySelector(".del").onclick = e => {
       e.stopPropagation();
-      if (confirm(`Delete "${s.name}"?`)) api("/api/stations/delete", {id: s.id}).then(l => { stations = l; renderList(); });
+      if (confirm(`Delete "${s.name}"?`)) api("/api/stations/delete", {id: s.id}).then(setStations);
     };
     $("list").appendChild(li);
   });
@@ -282,8 +332,11 @@ function renderSpotify(sp, active) {
   $("spPill").textContent = pill; $("spPill").className = "pill" + cls;
   $("spHow").classList.toggle("hidden", active && sp.state !== "idle");
   $("spBody").textContent = !sp.installed ? "librespot not found on the UNO Q; see the README to install it."
-    : (sp.user ? `Signed in: ${sp.user}` : "");
+    : sp.error ? sp.error
+    : [sp.user ? `Signed in: ${sp.user}` : "", sp.version || ""].filter(Boolean).join(" · ");
   $("spBody").className = "mut";
+  $("spBody").style.color = sp.error ? "var(--err)" : "";
+  if (sp.error && sp.installed) { $("spPill").textContent = "Error"; $("spPill").className = "pill err"; }
   if (!spFormInit) { $("spNameIn").value = sp.device_name; $("spEnabled").checked = sp.enabled; spFormInit = true; }
 }
 
@@ -389,13 +442,16 @@ $("delay").oninput = e => { delayDragging = true; $("delayv").textContent = e.ta
 $("delay").onchange = e => { api("/api/delay", {ms: +e.target.value}).finally(() => delayDragging = false); };
 
 $("btnAdd").onclick = () => {
-  api("/api/stations", {name: $("newName").value, url: $("newUrl").value}).then(r => {
+  api("/api/stations", {name: $("newName").value, url: $("newUrl").value, genre: $("newGenre").value}).then(r => {
     if (r.error) return alert(r.error);
-    stations = r; $("newName").value = $("newUrl").value = ""; renderList();
+    $("newName").value = $("newUrl").value = ""; setStations(r);
   });
 };
 
-api("/api/stations").then(l => { stations = l; renderList(); });
+$("btnCheck").onclick = () => api("/api/stations/check", {}).then(setStations);
+$("btnRestore").onclick = () => api("/api/stations/restore", {}).then(setStations);
+$("hideDead").onchange = renderList;
+loadStations();
 btRefresh(); setInterval(btRefresh, 10000); btPoll();
 poll();
 </script>

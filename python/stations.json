@@ -1,6 +1,350 @@
 [
-  {"id": 1, "name": "SomaFM Groove Salad", "url": "https://ice1.somafm.com/groovesalad-128-mp3"},
-  {"id": 2, "name": "SomaFM Deep Space One", "url": "https://ice1.somafm.com/deepspaceone-128-mp3"},
-  {"id": 3, "name": "SomaFM Drone Zone", "url": "https://ice1.somafm.com/dronezone-128-mp3"},
-  {"id": 4, "name": "Radio Paradise (Main Mix)", "url": "https://stream.radioparadise.com/mp3-192"}
+ {
+  "id": 1,
+  "name": "SomaFM Drone Zone",
+  "genre": "Ambient",
+  "url": "https://ice1.somafm.com/dronezone-128-mp3"
+ },
+ {
+  "id": 2,
+  "name": "SomaFM Deep Space One",
+  "genre": "Ambient",
+  "url": "https://ice1.somafm.com/deepspaceone-128-mp3"
+ },
+ {
+  "id": 3,
+  "name": "SomaFM Groove Salad",
+  "genre": "Ambient",
+  "url": "https://ice1.somafm.com/groovesalad-128-mp3"
+ },
+ {
+  "id": 4,
+  "name": "SomaFM Groove Salad Classic",
+  "genre": "Ambient",
+  "url": "https://ice1.somafm.com/gsclassic-128-mp3"
+ },
+ {
+  "id": 5,
+  "name": "SomaFM Space Station Soma",
+  "genre": "Ambient",
+  "url": "https://ice1.somafm.com/spacestation-128-mp3"
+ },
+ {
+  "id": 6,
+  "name": "SomaFM Mission Control",
+  "genre": "Ambient",
+  "url": "https://ice1.somafm.com/missioncontrol-128-mp3"
+ },
+ {
+  "id": 7,
+  "name": "SomaFM Synphaera",
+  "genre": "Ambient",
+  "url": "https://ice1.somafm.com/synphaera-128-mp3"
+ },
+ {
+  "id": 8,
+  "name": "SomaFM n5MD Radio",
+  "genre": "Ambient",
+  "url": "https://ice1.somafm.com/n5md-128-mp3"
+ },
+ {
+  "id": 9,
+  "name": "SomaFM Dark Zone",
+  "genre": "Ambient",
+  "url": "https://ice1.somafm.com/darkzone-128-mp3"
+ },
+ {
+  "id": 10,
+  "name": "Radio Paradise Mellow Mix",
+  "genre": "Ambient",
+  "url": "https://stream.radioparadise.com/mellow-192"
+ },
+ {
+  "id": 11,
+  "name": "Ambient Sleeping Pill",
+  "genre": "Ambient",
+  "url": "https://radio.stereoscenic.com/asp-h"
+ },
+ {
+  "id": 12,
+  "name": "Antenne Bayern Chillout",
+  "genre": "Ambient",
+  "url": "https://stream.antenne.de/chillout/stream/mp3"
+ },
+ {
+  "id": 13,
+  "name": "SomaFM Sonic Universe",
+  "genre": "Jazz",
+  "url": "https://ice1.somafm.com/sonicuniverse-128-mp3"
+ },
+ {
+  "id": 14,
+  "name": "SomaFM Bossa Beyond",
+  "genre": "Jazz",
+  "url": "https://ice1.somafm.com/bossa-128-mp3"
+ },
+ {
+  "id": 15,
+  "name": "Jazz24",
+  "genre": "Jazz",
+  "url": "https://live.wostreaming.net/direct/ppm-jazz24mp3-ibc1"
+ },
+ {
+  "id": 16,
+  "name": "Radio Swiss Jazz",
+  "genre": "Jazz",
+  "url": "https://stream.srg-ssr.ch/m/rsj/mp3_128"
+ },
+ {
+  "id": 17,
+  "name": "TSF Jazz",
+  "genre": "Jazz",
+  "url": "https://tsfjazz.ice.infomaniak.ch/tsfjazz-high.mp3"
+ },
+ {
+  "id": 18,
+  "name": "Jazz Radio (FR)",
+  "genre": "Jazz",
+  "url": "https://jazzradio.ice.infomaniak.ch/jazzradio-high.mp3"
+ },
+ {
+  "id": 19,
+  "name": "FIP Jazz",
+  "genre": "Jazz",
+  "url": "https://icecast.radiofrance.fr/fipjazz-midfi.mp3"
+ },
+ {
+  "id": 20,
+  "name": "WBGO Jazz 88.3",
+  "genre": "Jazz",
+  "url": "https://wbgo.streamguys1.com/wbgo128"
+ },
+ {
+  "id": 21,
+  "name": "WWOZ New Orleans",
+  "genre": "Jazz",
+  "url": "https://wwoz-sc.streamguys1.com/wwoz-hi.mp3"
+ },
+ {
+  "id": 22,
+  "name": "ABC Jazz",
+  "genre": "Jazz",
+  "url": "https://live-radio01.mediahubaustralia.com/JAZW/mp3/"
+ },
+ {
+  "id": 23,
+  "name": "The Jazz Groove",
+  "genre": "Jazz",
+  "url": "https://west-mp3-128.streamthejazzgroove.com/stream"
+ },
+ {
+  "id": 24,
+  "name": "181.fm Classical Jazz",
+  "genre": "Jazz",
+  "url": "https://listen.181fm.com/181-classicaljazz_128k.mp3"
+ },
+ {
+  "id": 25,
+  "name": "SomaFM Seven Inch Soul",
+  "genre": "R&B / Soul",
+  "url": "https://ice1.somafm.com/7soul-128-mp3"
+ },
+ {
+  "id": 26,
+  "name": "FIP Groove",
+  "genre": "R&B / Soul",
+  "url": "https://icecast.radiofrance.fr/fipgroove-midfi.mp3"
+ },
+ {
+  "id": 27,
+  "name": "Antenne Bayern Black Beatz",
+  "genre": "R&B / Soul",
+  "url": "https://stream.antenne.de/black-beatz/stream/mp3"
+ },
+ {
+  "id": 28,
+  "name": "181.fm The Beat",
+  "genre": "R&B / Soul",
+  "url": "https://listen.181fm.com/181-beat_128k.mp3"
+ },
+ {
+  "id": 29,
+  "name": "181.fm Old School HipHop/R&B",
+  "genre": "R&B / Soul",
+  "url": "https://listen.181fm.com/181-oldschool_128k.mp3"
+ },
+ {
+  "id": 30,
+  "name": "181.fm Soul",
+  "genre": "R&B / Soul",
+  "url": "https://listen.181fm.com/181-soul_128k.mp3"
+ },
+ {
+  "id": 31,
+  "name": "181.fm Jammin 181",
+  "genre": "R&B / Soul",
+  "url": "https://listen.181fm.com/181-jammin_128k.mp3"
+ },
+ {
+  "id": 32,
+  "name": "181.fm True R&B",
+  "genre": "R&B / Soul",
+  "url": "https://listen.181fm.com/181-rnb_128k.mp3"
+ },
+ {
+  "id": 33,
+  "name": "JAM FM",
+  "genre": "R&B / Soul",
+  "url": "https://stream.jam.fm/jamfm-live/mp3-128/"
+ },
+ {
+  "id": 34,
+  "name": "Radio Nova",
+  "genre": "R&B / Soul",
+  "url": "https://novazz.ice.infomaniak.ch/novazz-128.mp3"
+ },
+ {
+  "id": 35,
+  "name": "FIP Hip-Hop",
+  "genre": "R&B / Soul",
+  "url": "https://icecast.radiofrance.fr/fiphiphop-midfi.mp3"
+ },
+ {
+  "id": 36,
+  "name": "Radio Paradise Rock Mix",
+  "genre": "Rock",
+  "url": "https://stream.radioparadise.com/rock-192"
+ },
+ {
+  "id": 37,
+  "name": "Radio Paradise Main Mix",
+  "genre": "Rock",
+  "url": "https://stream.radioparadise.com/mp3-192"
+ },
+ {
+  "id": 38,
+  "name": "FIP Rock",
+  "genre": "Rock",
+  "url": "https://icecast.radiofrance.fr/fiprock-midfi.mp3"
+ },
+ {
+  "id": 39,
+  "name": "Rock Antenne",
+  "genre": "Rock",
+  "url": "https://stream.rockantenne.de/rockantenne/stream/mp3"
+ },
+ {
+  "id": 40,
+  "name": "Rock Antenne Classic Perlen",
+  "genre": "Rock",
+  "url": "https://stream.rockantenne.de/classic-perlen/stream/mp3"
+ },
+ {
+  "id": 41,
+  "name": "Rock Antenne Alternative",
+  "genre": "Rock",
+  "url": "https://stream.rockantenne.de/alternative/stream/mp3"
+ },
+ {
+  "id": 42,
+  "name": "KEXP Seattle",
+  "genre": "Rock",
+  "url": "https://kexp-mp3-128.streamguys1.com/kexp128.mp3"
+ },
+ {
+  "id": 43,
+  "name": "SomaFM Left Coast 70s",
+  "genre": "Rock",
+  "url": "https://ice1.somafm.com/seventies-128-mp3"
+ },
+ {
+  "id": 44,
+  "name": "SomaFM Indie Pop Rocks",
+  "genre": "Rock",
+  "url": "https://ice1.somafm.com/indiepop-128-mp3"
+ },
+ {
+  "id": 45,
+  "name": "181.fm Rock 181",
+  "genre": "Rock",
+  "url": "https://listen.181fm.com/181-rock_128k.mp3"
+ },
+ {
+  "id": 46,
+  "name": "181.fm The Buzz",
+  "genre": "Rock",
+  "url": "https://listen.181fm.com/181-buzz_128k.mp3"
+ },
+ {
+  "id": 47,
+  "name": "RADIO BOB!",
+  "genre": "Rock",
+  "url": "https://streams.radiobob.de/bob-national/mp3-192/mediaplayer"
+ },
+ {
+  "id": 48,
+  "name": "SomaFM Metal Detector",
+  "genre": "Metal",
+  "url": "https://ice1.somafm.com/metal-128-mp3"
+ },
+ {
+  "id": 49,
+  "name": "Rock Antenne Heavy Metal",
+  "genre": "Metal",
+  "url": "https://stream.rockantenne.de/heavy-metal/stream/mp3"
+ },
+ {
+  "id": 50,
+  "name": "Rock Antenne Hair Metal",
+  "genre": "Metal",
+  "url": "https://stream.rockantenne.de/hair-metal/stream/mp3"
+ },
+ {
+  "id": 51,
+  "name": "Rock Antenne Symphonic Metal",
+  "genre": "Metal",
+  "url": "https://stream.rockantenne.de/symphonic-metal/stream/mp3"
+ },
+ {
+  "id": 52,
+  "name": "FIP Metal",
+  "genre": "Metal",
+  "url": "https://icecast.radiofrance.fr/fipmetal-midfi.mp3"
+ },
+ {
+  "id": 53,
+  "name": "181.fm Hair Nation",
+  "genre": "Metal",
+  "url": "https://listen.181fm.com/181-hairband_128k.mp3"
+ },
+ {
+  "id": 54,
+  "name": "RADIO BOB! Metal",
+  "genre": "Metal",
+  "url": "https://streams.radiobob.de/bob-metal/mp3-192/mediaplayer"
+ },
+ {
+  "id": 55,
+  "name": "RADIO BOB! Hard Rock",
+  "genre": "Metal",
+  "url": "https://streams.radiobob.de/bob-hardrock/mp3-192/mediaplayer"
+ },
+ {
+  "id": 56,
+  "name": "RADIO BOB! Metalcore",
+  "genre": "Metal",
+  "url": "https://streams.radiobob.de/bob-metalcore/mp3-192/mediaplayer"
+ },
+ {
+  "id": 57,
+  "name": "RADIO BOB! Death Metal",
+  "genre": "Metal",
+  "url": "https://streams.radiobob.de/bob-deathmetal/mp3-192/mediaplayer"
+ },
+ {
+  "id": 58,
+  "name": "laut.fm Metal",
+  "genre": "Metal",
+  "url": "https://stream.laut.fm/metal"
+ }
 ]

@@ -29,7 +29,8 @@ To add a new source (for example AirPlay via `shairport-sync --output=stdout`, l
 | `python/bt.py` | Bluetooth speaker management |
 | `python/led.py` | Sends the spectrum to the MCU (picks a Bridge backend automatically) |
 | `python/static/index.html` | Mobile-friendly web UI |
-| `python/stations.json` | Default station list; edits made in the web UI are saved to `stations.user.json` (git-ignored) |
+| `python/stations.json` | Default stations (~58, grouped by genre: Ambient, Jazz, R&B / Soul, Rock, Metal) |
+| `python/stations.py` | Station store (defaults + your edits in `stations.user.json`, git-ignored) and stream health check |
 | `sketch/sketch.ino` | MCU side: LED matrix rendering, 4 display styles |
 | `deploy/install.sh` | Installer |
 | `deploy/unoq-radio.service` | systemd user service |
@@ -71,6 +72,7 @@ Optional: the official Bridge Python package `arduino_app_bricks` is not require
 
 - **Plug and play**: about a minute after power-on the service is running and the last speaker is reconnected. No login or PC needed.
 - **Web UI** (`http://<IP>:8080`): pick stations, volume, spectrum, LED style, Bluetooth, add or remove stations.
+- **Stations**: filter by genre with the chips above the list. **Manage stations → Check all streams** tests every URL on the board (green = OK, red = failed); tick *Hide stations that failed the check* to hide dead ones. Deleted default stations can be brought back with **Restore deleted defaults**.
 - **LED style**: choose **Bars**, **Mirror**, **Peaks** or **Waterfall** under the volume slider. The choice is saved and survives reboots.
 - **No sound from the speaker**: make sure it is on and not grabbed by a phone, then press **Connect** on it in the web UI. The app re-establishes the A2DP link if needed.
 - **Spotify**: in the Spotify app, open the device list and pick **UNO Q Radio**.
@@ -91,7 +93,7 @@ It fetches the latest commit, re-uploads the sketch if `sketch/` changed, and re
 | `sketch/` | re-run step 3 to upload the sketch |
 | `deploy/install.sh`, `deploy/unoq-radio.service` | re-run `bash deploy/install.sh` |
 
-Stations edited in the web UI live in `stations.user.json` and settings in `config.json`. Both are git-ignored, so `git pull` never conflicts with or overwrites them.
+Your station edits live in `stations.user.json` and settings in `config.json`. Both are git-ignored, so `git pull` never conflicts with or overwrites them. `stations.user.json` only records what you added or deleted, so new default stations from an update show up automatically.
 
 If `git pull` refuses because of local changes (usually from editing files directly on the board), use `git stash` and pull again, or `git checkout -- .` to discard them.
 
@@ -114,6 +116,7 @@ When you come in through `adb shell` instead of SSH, `systemctl --user` may not 
 - **Install**: `install.sh` asks whether to install it (it uses the raspotify package to get an arm64 librespot and disables raspotify's own service). You can also build it with `cargo install librespot`, which takes a while on the A53.
 - **Sign-in**: the first time you pick the device on the phone, Zeroconf authorizes it automatically. Credentials are cached in `~/.cache/unoq-radio/librespot`.
 - **Settings**: web UI → Spotify tab → Settings, to rename the device or disable it.
+- **"error audio key 0 1" / phone says playing but nothing plays**: Spotify refuses the decryption key for some accounts (mostly newer ones), so librespot skips every track. This is a Spotify-side restriction tracked in [librespot #1649](https://github.com/librespot-org/librespot/issues/1649), not a UNO Q problem. The web UI shows the error on the Spotify tab. Keeping librespot up to date is the only thing to try on the board (`sudo apt update && sudo apt install --only-upgrade raspotify`).
 - **Limitations**: you cannot browse Spotify songs from the web UI (there is no official Spotify client for Linux arm64, and the Web API cannot stream audio). **Stop** in the web UI disconnects the Spotify session.
 
 ## Tested with
