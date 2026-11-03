@@ -20,6 +20,15 @@ printf 'wireplumber.profiles = {\n  main = {\n    monitor.bluez.seat-monitoring 
   > ~/.config/wireplumber/wireplumber.conf.d/80-headless.conf
 # LED Bridge: arduino-router.sock belongs to the arduino-router group (reboot required)
 getent group arduino-router >/dev/null && sudo usermod -aG arduino-router "$USER"
+# Web UI "Shut down" button: allow exactly this command without a password
+SUDOERS=/etc/sudoers.d/unoq-radio
+echo "$USER ALL=(root) NOPASSWD: /usr/sbin/shutdown -h now" | sudo tee "$SUDOERS.tmp" >/dev/null
+sudo chmod 440 "$SUDOERS.tmp"
+if sudo visudo -cf "$SUDOERS.tmp" >/dev/null; then sudo mv "$SUDOERS.tmp" "$SUDOERS"; else sudo rm -f "$SUDOERS.tmp"; echo "sudoers check failed, shutdown button disabled"; fi
+# MCU sketch dependency for building with arduino-cli (App Lab bundles it, arduino-cli does not)
+if command -v arduino-cli >/dev/null; then
+  arduino-cli lib list 2>/dev/null | grep -q '^Arduino_RouterBridge ' || arduino-cli lib install Arduino_RouterBridge
+fi
 
 echo "== 3. (Optional) Install librespot for Spotify Connect =="
 if ! command -v librespot >/dev/null; then

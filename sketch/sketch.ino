@@ -33,6 +33,7 @@ const uint32_t PEAK_FALL_MS = 70;
 
 volatile bool hasNew = false;
 volatile bool idleMode = true;
+volatile bool displayOff = false;    // set by off() before Linux shuts down
 volatile int style = STYLE_BARS;
 int target[COLS];                    // band levels 0..8 (written by the RPC thread)
 int vu[2];                           // L/R levels 0..13
@@ -72,9 +73,12 @@ void onBars(String s) {
   if (pos < (int)s.length()) parseList(s, pos, vu, 2, COLS);
   hasNew = true;
   idleMode = false;
+  displayOff = false;
 }
 
-void onIdle(String) { idleMode = true; }
+void onIdle(String) { idleMode = true; displayOff = false; }
+
+void onOff(String) { displayOff = true; }
 
 String onVersion() { return String(SKETCH_VERSION); }
 
@@ -178,10 +182,18 @@ void setup() {
   Bridge.begin();
   Bridge.provide("bars", onBars);
   Bridge.provide("idle", onIdle);
+  Bridge.provide("off", onOff);
   Bridge.provide("version", onVersion);
 }
 
 void loop() {
+  static bool blanked = false;
+  if (displayOff) {                  // Linux is shutting down: keep the matrix dark
+    if (!blanked) { memset(frame, 0, sizeof(frame)); matrix.draw(frame); blanked = true; }
+    delay(20);
+    return;
+  }
+  blanked = false;
   if (hasNew) {
     hasNew = false;
     lastData = millis();

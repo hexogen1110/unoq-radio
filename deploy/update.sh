@@ -34,6 +34,8 @@ want=$(sha256sum sketch/sketch.ino | cut -d' ' -f1)
 have=$(cat "$STAMP" 2>/dev/null || true)
 if [ "$FORCE_SKETCH" = 1 ] || [ "$want" != "$have" ]; then
   echo "== Uploading the sketch to the MCU =="
+  arduino-cli lib list 2>/dev/null | grep -q '^Arduino_RouterBridge ' \
+    || arduino-cli lib install Arduino_RouterBridge || true
   if arduino-cli compile --fqbn arduino:zephyr:unoq --upload sketch; then
     echo "$want" > "$STAMP"
     echo "Sketch uploaded."

@@ -184,6 +184,13 @@
       <div class="mut">Increase it if the LEDs move before the sound; Bluetooth speakers are usually 150–300 ms.</div>
     </details>
   </section>
+  <section class="card">
+    <div class="row" style="justify-content:space-between">
+      <span class="mut">System</span>
+      <button id="btnShutdown" style="color:var(--err); border-color:var(--err)">⏻ Shut down</button>
+    </div>
+    <div class="mut" id="shutHint" style="margin-top:6px"></div>
+  </section>
 </main>
 
 <script>
@@ -492,6 +499,15 @@ $("btnAdd").onclick = () => {
 $("btnCheck").onclick = () => api("/api/stations/check", {}).then(setStations);
 $("btnRestore").onclick = () => api("/api/stations/restore", {}).then(setStations);
 $("hideDead").onchange = renderList;
+$("btnShutdown").onclick = async () => {
+  if (!confirm("Shut down the UNO Q now? Playback stops, and you need to unplug and replug the power to start it again.")) return;
+  const r = await api("/api/power/shutdown", {}).catch(() => ({error: "No response from the UNO Q"}));
+  if (r.error) return alert(r.error);
+  $("btnShutdown").disabled = true;
+  $("shutHint").textContent = "Shutting down… wait about 20 seconds before unplugging the power.";
+  clearTimeout(poll.t); clearTimeout(btTimer);
+  setTimeout(() => { $("state").textContent = "Off"; }, 3000);
+};
 loadStations();
 btRefresh(); setInterval(btRefresh, 10000); btPoll();
 poll();

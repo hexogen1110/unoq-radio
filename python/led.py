@@ -77,6 +77,10 @@ class Led:
     def idle(self):
         self._send("idle", "")
 
+    def off(self):
+        """Blank the matrix (before shutdown: the MCU keeps running when Linux powers off)."""
+        self._send("off", "")
+
     def _send(self, func, arg):
         try:
             self.backend.send(func, arg)

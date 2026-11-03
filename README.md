@@ -66,6 +66,8 @@ Run everything below on the UNO Q as the `arduino` user. From a PC use `ssh ardu
    - The last speaker is remembered and reconnected at boot; **Forget** unpairs it.
    - By default only audio devices are listed (Icon `audio-*` or the A2DP Audio Sink UUID); untick the box to see everything.
 
+`arduino-cli` needs the `Arduino_RouterBridge` library to build the sketch (App Lab bundles it). `install.sh` and `update.sh` install it automatically; manually: `arduino-cli lib install Arduino_RouterBridge`.
+
 Optional: the official Bridge Python package `arduino_app_bricks` is not required. Without it, `led.py` talks MsgPack-RPC directly to `/var/run/arduino-router.sock`.
 
 ## Everyday use
@@ -79,6 +81,7 @@ Optional: the official Bridge Python package `arduino_app_bricks` is not require
   - **Dots**: "dot mode": only the current level and the peak cap of each band are lit.
   - **L/R Meter**: horizontal left/right level meter like a cassette deck, with scale ticks and an "over" zone.
 - **No sound from the speaker**: make sure it is on and not grabbed by a phone, then press **Connect** on it in the web UI. The app re-establishes the A2DP link if needed.
+- **Shut down**: the **⏻ Shut down** button at the bottom of the page powers the board off cleanly (no SSH needed). Wait about 20 s before unplugging. It needs the sudoers rule that `install.sh` creates (only `shutdown -h now` is allowed, without a password).
 - **Spotify**: in the Spotify app, open the device list and pick **UNO Q Radio**.
 
 ## Updating
@@ -167,4 +170,4 @@ journalctl --user -u unoq-radio -f
 - **App Lab container**: this project runs directly on Debian (systemd user service) because the App Lab Python container does not necessarily have access to PipeWire and Bluetooth.
 - **Volume**: software gain in Python. The FFT uses the signal before the volume stage, so turning it down does not shrink the LED spectrum. The speaker's own volume buttons still work.
 - **Track titles**: parsed from the ICY `StreamTitle` in ffmpeg's output; only some stations send it.
-- **Security**: the web UI has no authentication, so use it on your home LAN only. The diagnostics page `/api/diag` is also unauthenticated and exposes system info, the Bluetooth MAC and logs.
+- **Security**: the web UI has no authentication, so use it on your home LAN only (anyone on the LAN can also use the shut-down button). The diagnostics page `/api/diag` is also unauthenticated and exposes system info, the Bluetooth MAC and logs.

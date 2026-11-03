@@ -251,6 +251,26 @@ class Handler(BaseHTTPRequestHandler):
             out.led.set_style(d.get("style", 0))
             save_config()
             self._json({"led_style": out.led.style})
+        elif p == "/api/power/shutdown":                  # power the board off
+            import shutil
+            import subprocess as sp
+            cmd = ["sudo", "-n", "/usr/sbin/shutdown", "-h", "now"]
+            ok = shutil.which("sudo") and sp.run(["sudo", "-n", "-l", *cmd[2:]],
+                                                capture_output=True, timeout=5).returncode == 0
+            if not ok:
+                return self._json({"error": "Shutdown is not allowed for this user yet. "
+                                            "Run 'bash ~/unoq-radio/deploy/install.sh' once on the board."}, 403)
+            log.warning("shutdown requested from %s", self.client_address[0])
+            mgr.stop_all()
+            save_config()
+            out.led.off()
+
+            def _later():
+                import time
+                time.sleep(1.5)                           # let the HTTP reply and LED blanking go out
+                sp.run(cmd)
+            threading.Thread(target=_later, daemon=True).start()
+            self._json({"ok": True})
         elif p == "/api/delay":
             out.display_delay_ms = max(0, min(1000, int(d.get("ms", 250))))
             save_config()
