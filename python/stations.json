@@ -87,7 +87,7 @@
   "id": 15,
   "name": "Jazz24",
   "genre": "Jazz",
-  "url": "https://live.wostreaming.net/direct/ppm-jazz24mp3-ibc1"
+  "url": "http://live.wostreaming.net/direct/ppm-jazz24mp3-ibc1"
  },
  {
   "id": 16,
@@ -115,9 +115,9 @@
  },
  {
   "id": 20,
-  "name": "WBGO Jazz 88.3",
+  "name": "SomaFM Secret Agent",
   "genre": "Jazz",
-  "url": "https://wbgo.streamguys1.com/wbgo128"
+  "url": "https://ice1.somafm.com/secretagent-128-mp3"
  },
  {
   "id": 21,
@@ -127,9 +127,9 @@
  },
  {
   "id": 22,
-  "name": "ABC Jazz",
+  "name": "SomaFM Illinois Street Lounge",
   "genre": "Jazz",
-  "url": "https://live-radio01.mediahubaustralia.com/JAZW/mp3/"
+  "url": "https://ice1.somafm.com/illstreet-128-mp3"
  },
  {
   "id": 23,
@@ -208,6 +208,78 @@
   "name": "FIP Hip-Hop",
   "genre": "R&B / Soul",
   "url": "https://icecast.radiofrance.fr/fiphiphop-midfi.mp3"
+ },
+ {
+  "id": 59,
+  "name": "Radio Swiss Pop",
+  "genre": "Pop",
+  "url": "https://stream.srg-ssr.ch/m/rsp/mp3_128"
+ },
+ {
+  "id": 60,
+  "name": "Antenne Bayern",
+  "genre": "Pop",
+  "url": "https://stream.antenne.de/antenne/stream/mp3"
+ },
+ {
+  "id": 61,
+  "name": "Antenne Bayern Top 40",
+  "genre": "Pop",
+  "url": "https://stream.antenne.de/top-40/stream/mp3"
+ },
+ {
+  "id": 62,
+  "name": "Antenne Bayern 80er Kulthits",
+  "genre": "Pop",
+  "url": "https://stream.antenne.de/80er-kulthits/stream/mp3"
+ },
+ {
+  "id": 63,
+  "name": "Antenne Bayern 90er Hits",
+  "genre": "Pop",
+  "url": "https://stream.antenne.de/90er-hits/stream/mp3"
+ },
+ {
+  "id": 64,
+  "name": "Antenne Bayern Lovesongs",
+  "genre": "Pop",
+  "url": "https://stream.antenne.de/lovesongs/stream/mp3"
+ },
+ {
+  "id": 65,
+  "name": "FIP Pop",
+  "genre": "Pop",
+  "url": "https://icecast.radiofrance.fr/fippop-midfi.mp3"
+ },
+ {
+  "id": 66,
+  "name": "SomaFM PopTron",
+  "genre": "Pop",
+  "url": "https://ice1.somafm.com/poptron-128-mp3"
+ },
+ {
+  "id": 67,
+  "name": "SomaFM Underground 80s",
+  "genre": "Pop",
+  "url": "https://ice1.somafm.com/u80s-128-mp3"
+ },
+ {
+  "id": 68,
+  "name": "181.fm Power 181",
+  "genre": "Pop",
+  "url": "https://listen.181fm.com/181-power_128k.mp3"
+ },
+ {
+  "id": 69,
+  "name": "181.fm Star 90's",
+  "genre": "Pop",
+  "url": "https://listen.181fm.com/181-star90s_128k.mp3"
+ },
+ {
+  "id": 70,
+  "name": "181.fm Awesome 80's",
+  "genre": "Pop",
+  "url": "https://listen.181fm.com/181-awesome80s_128k.mp3"
  },
  {
   "id": 36,
@@ -298,12 +370,6 @@
   "name": "Rock Antenne Hair Metal",
   "genre": "Metal",
   "url": "https://stream.rockantenne.de/hair-metal/stream/mp3"
- },
- {
-  "id": 51,
-  "name": "Rock Antenne Symphonic Metal",
-  "genre": "Metal",
-  "url": "https://stream.rockantenne.de/symphonic-metal/stream/mp3"
  },
  {
   "id": 52,

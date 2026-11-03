@@ -105,7 +105,7 @@ bt = BtManager()
 
 def full_status():
     return {"source": mgr.active, "volume": out.volume, "display_delay_ms": out.display_delay_ms,
-            "levels": out.levels,
+            "levels": out.levels, "vu": out.vu,
             "led_style": out.led.style, "led_styles": STYLES, "radio": radio.status(), "spotify": spotify.status(),
             "bt_mac": config.get("bt_mac", "")}
 

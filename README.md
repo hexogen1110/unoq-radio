@@ -29,7 +29,7 @@ To add a new source (for example AirPlay via `shairport-sync --output=stdout`, l
 | `python/bt.py` | Bluetooth speaker management |
 | `python/led.py` | Sends the spectrum to the MCU (picks a Bridge backend automatically) |
 | `python/static/index.html` | Mobile-friendly web UI |
-| `python/stations.json` | Default stations (~58, grouped by genre: Ambient, Jazz, R&B / Soul, Rock, Metal) |
+| `python/stations.json` | Default stations (~69, grouped by genre: Ambient, Jazz, R&B / Soul, Pop, Rock, Metal) |
 | `python/stations.py` | Station store (defaults + your edits in `stations.user.json`, git-ignored) and stream health check |
 | `sketch/sketch.ino` | MCU side: LED matrix rendering, 4 display styles |
 | `deploy/install.sh` | Installer |
@@ -73,7 +73,11 @@ Optional: the official Bridge Python package `arduino_app_bricks` is not require
 - **Plug and play**: about a minute after power-on the service is running and the last speaker is reconnected. No login or PC needed.
 - **Web UI** (`http://<IP>:8080`): pick stations, volume, spectrum, LED style, Bluetooth, add or remove stations.
 - **Stations**: filter by genre with the chips above the list. **Manage stations → Check all streams** tests every URL on the board (green = OK, red = failed); tick *Hide stations that failed the check* to hide dead ones. Deleted default stations can be brought back with **Restore deleted defaults**.
-- **LED style**: choose **Bars**, **Mirror**, **Peaks** or **Waterfall** under the volume slider. The choice is saved and survives reboots.
+- **LED style** (under the volume slider, saved across reboots), all drawn like a vintage hi-fi VFD with faintly glowing unlit segments and peak-hold caps. The web page shows a live preview of the matrix:
+  - **VFD Bars**: classic spectrum bars with a bright top segment and falling peak caps.
+  - **Mirror**: bars grow up and down from a lit centre line; both halves are exact mirror images.
+  - **Dots**: "dot mode": only the current level and the peak cap of each band are lit.
+  - **L/R Meter**: horizontal left/right level meter like a cassette deck, with scale ticks and an "over" zone.
 - **No sound from the speaker**: make sure it is on and not grabbed by a phone, then press **Connect** on it in the web UI. The app re-establishes the A2DP link if needed.
 - **Spotify**: in the Spotify app, open the device list and pick **UNO Q Radio**.
 
@@ -134,7 +138,7 @@ Start with the diagnostics: open `http://<IP>:8080/api/diag` in a browser, or, i
 | No Bluetooth audio device without a local login | WirePlumber 0.5 only enables Bluetooth on an active logind seat (`monitor.bluez.seat-monitoring`) | `install.sh` writes `~/.config/wireplumber/wireplumber.conf.d/80-headless.conf` to disable it |
 | LEDs do not move; log shows `[Errno 13] Permission denied` | `/var/run/arduino-router.sock` is `root:arduino-router 660` | `sudo usermod -aG arduino-router $USER`, then reboot |
 | Log shows `No module named 'arduino'` | `arduino_app_bricks` is not installed | Safe to ignore: once the socket permission is fixed, `_RawSocketBackend` is used |
-| Only one LED style / style buttons do nothing | Old sketch on the MCU | Re-upload `sketch/sketch.ino` (installation step 3) |
+| All LED styles look the same, or the bars look shifted | Old sketch on the MCU | Re-upload the sketch: `arduino-cli compile --fqbn arduino:zephyr:unoq --upload ~/unoq-radio/sketch` |
 
 For a board installed with an older version, run `bash deploy/fix_headless.sh && sudo reboot` once.
 

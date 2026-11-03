@@ -27,6 +27,8 @@ class AudioOutput:
         self.volume = volume
         self.display_delay_ms = display_delay_ms
         self.levels = [0] * BANDS
+        self.vu = [0, 0]                 # L/R level meter, 0..13 (one step per LED column)
+        self._vu_smooth = np.zeros(2)
         self._pa = None
         self._wlock = threading.Lock()
         self._last_write = 0.0
@@ -58,7 +60,7 @@ class AudioOutput:
         if not raw:
             return
         pcm = np.frombuffer(raw, np.int16).reshape(-1, CH)
-        self._analyze(pcm.mean(axis=1) / 32768.0)
+        self._analyze(pcm.mean(axis=1) / 32768.0, pcm)
         out = (pcm * ((self.volume / 100.0) ** 2)).astype(np.int16).tobytes()
         with self._wlock:
             for attempt in (1, 2):
@@ -86,13 +88,15 @@ class AudioOutput:
         self._queue.clear()
         self._smooth[:] = 0
         self.levels = [0] * BANDS
+        self.vu = [0, 0]
+        self._vu_smooth[:] = 0
         self.led.idle()
 
     def set_volume(self, v):
         self.volume = max(0, min(100, int(v)))
 
     # ---------------- FFT ----------------
-    def _analyze(self, mono):
+    def _analyze(self, mono, pcm):
         n = len(mono)
         if n >= FFT_N:
             self._ring[:] = mono[-FFT_N:]
@@ -105,8 +109,13 @@ class AudioOutput:
         db = 20 * np.log10(band / self._agc + 1e-9)
         h = np.clip((db + 36) / 36 * 8, 0, 8)
         self._smooth = np.maximum(h, self._smooth - 0.6)
+        # L/R RMS level meter: -40..0 dBFS → 0..13, fast attack, slow release (like an analog VU)
+        rms = np.sqrt(np.mean((pcm.astype(np.float32) / 32768.0) ** 2, axis=0) + 1e-12)
+        vu = np.clip((20 * np.log10(rms) + 40) / 40 * 13, 0, 13)
+        self._vu_smooth = np.maximum(vu, self._vu_smooth - 0.5)
         self._queue.append((time.monotonic() + self.display_delay_ms / 1000.0,
-                            [int(round(v)) for v in self._smooth]))
+                            [int(round(v)) for v in self._smooth],
+                            [int(round(v)) for v in self._vu_smooth]))
 
     def _led_loop(self):
         idle_sent = True
@@ -115,12 +124,13 @@ class AudioOutput:
             now = time.monotonic()
             latest = None
             while self._queue and self._queue[0][0] <= now:
-                latest = self._queue.popleft()[1]
+                latest = self._queue.popleft()[1:]
             if latest is not None:
-                self.levels = latest
-                self.led.bars(latest)
+                self.levels, self.vu = latest
+                self.led.bars(self.levels, self.vu)
                 idle_sent = False
             elif not idle_sent and now - self._last_write > 1.0:   # paused / stream gap > 1 s → idle animation
                 self.levels = [0] * BANDS
+                self.vu = [0, 0]
                 self.led.idle()
                 idle_sent = True
