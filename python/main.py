@@ -129,6 +129,8 @@ DIAG_CMDS = [
     ("bt show", ["bluetoothctl", "show"]),
     ("bt info", ["sh", "-c", "M=$(python3 -c \"import json;print(json.load(open('config.json')).get('bt_mac',''))\" 2>/dev/null); [ -n \"$M\" ] && bluetoothctl info $M"]),
     ("router sock", ["sh", "-c", "ls -la /var/run/arduino-router.sock /run/arduino-router* 2>&1; getent group | grep -Ei 'arduino|router|dialout|bluetooth|audio' "]),
+    ("arduino-cli", ["sh", "-c", "command -v arduino-cli && arduino-cli version; ls -la ~/.cache/unoq-radio/ 2>&1"]),
+    ("App Lab", ["sh", "-c", "systemctl --no-pager status arduino-app-cli 2>&1 | head -5; ls ~/ArduinoApps 2>&1; journalctl -u arduino-app-cli -n 15 --no-pager 2>&1 | tail -15"]),
     ("python arduino", ["python3", "-c", "import arduino.app_utils as a; print('ok', a.__file__)"]),
     ("journal radio", ["journalctl", "--user", "-u", "unoq-radio", "-n", "80", "--no-pager"]),
     ("journal wireplumber", ["journalctl", "--user", "-u", "wireplumber", "-n", "60", "--no-pager"]),
@@ -137,9 +139,28 @@ DIAG_CMDS = [
 ]
 
 
+def mcu_version():
+    """Ask the MCU sketch for its version over the router (MsgPack-RPC request)."""
+    import socket
+    try:
+        import msgpack
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as so:
+            so.settimeout(3)
+            so.connect("/var/run/arduino-router.sock")
+            so.sendall(msgpack.packb([0, 4242, "version", []]))
+            up = msgpack.Unpacker(raw=False)
+            while True:
+                up.feed(so.recv(4096))
+                for msg in up:
+                    if isinstance(msg, (list, tuple)) and len(msg) == 4 and msg[0] == 1 and msg[1] == 4242:
+                        return f"error: {msg[2]}" if msg[2] else str(msg[3])
+    except Exception as e:  # noqa: BLE001
+        return f"no answer ({e}) - probably an old sketch without 'version'"
+
+
 def diag_text():
     import subprocess as sp
-    parts = [f"LED backend: {type(out.led.backend).__name__}", f"status: {json.dumps(full_status(), ensure_ascii=False)}"]
+    parts = [f"LED backend: {type(out.led.backend).__name__}", f"MCU sketch: {mcu_version()}", f"status: {json.dumps(full_status(), ensure_ascii=False)}"]
     for title, cmd in DIAG_CMDS:
         try:
             r = sp.run(cmd, capture_output=True, text=True, timeout=10, cwd=BASE)

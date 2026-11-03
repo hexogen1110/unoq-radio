@@ -89,7 +89,7 @@ After you `git push` changes from your PC, run on the UNO Q:
 bash ~/unoq-radio/deploy/update.sh
 ```
 
-It fetches the latest commit, re-uploads the sketch if `sketch/` changed, and restarts the service. It also works from `adb shell` (after `su - arduino`) because it sets `XDG_RUNTIME_DIR` itself. The manual equivalent is `git pull && systemctl --user restart unoq-radio`.
+It fetches the latest commit, uploads the sketch whenever it differs from the last upload (`--sketch` forces it), and restarts the service. `/api/diag` shows which sketch version the MCU is actually running. It also works from `adb shell` (after `su - arduino`) because it sets `XDG_RUNTIME_DIR` itself. The manual equivalent is `git pull && systemctl --user restart unoq-radio`.
 
 | Changed files | Extra step |
 |---|---|
@@ -138,7 +138,7 @@ Start with the diagnostics: open `http://<IP>:8080/api/diag` in a browser, or, i
 | No Bluetooth audio device without a local login | WirePlumber 0.5 only enables Bluetooth on an active logind seat (`monitor.bluez.seat-monitoring`) | `install.sh` writes `~/.config/wireplumber/wireplumber.conf.d/80-headless.conf` to disable it |
 | LEDs do not move; log shows `[Errno 13] Permission denied` | `/var/run/arduino-router.sock` is `root:arduino-router 660` | `sudo usermod -aG arduino-router $USER`, then reboot |
 | Log shows `No module named 'arduino'` | `arduino_app_bricks` is not installed | Safe to ignore: once the socket permission is fixed, `_RawSocketBackend` is used |
-| All LED styles look the same, or the bars look shifted | Old sketch on the MCU | Re-upload the sketch: `arduino-cli compile --fqbn arduino:zephyr:unoq --upload ~/unoq-radio/sketch` |
+| All LED styles look the same, or the bars look shifted | Old sketch on the MCU (check `MCU sketch:` in `/api/diag`) | `bash ~/unoq-radio/deploy/update.sh --sketch`. If an App Lab app is set to run at startup, it re-flashes its own sketch on every boot: turn that off in App Lab |
 
 For a board installed with an older version, run `bash deploy/fix_headless.sh && sudo reboot` once.
 

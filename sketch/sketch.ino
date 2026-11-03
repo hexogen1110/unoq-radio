@@ -12,6 +12,9 @@
 
 Arduino_LED_Matrix matrix;
 
+// Reported to Linux via Bridge "version" (shown in /api/diag) to confirm which sketch is running
+const char *SKETCH_VERSION = "unoq-radio sketch v3 (VFD styles: bars/mirror/dots/meter)";
+
 const int COLS = 13, ROWS = 8;
 uint8_t frame[COLS * ROWS];          // brightness 0..7 per pixel (3-bit grayscale)
 
@@ -72,6 +75,8 @@ void onBars(String s) {
 }
 
 void onIdle(String) { idleMode = true; }
+
+String onVersion() { return String(SKETCH_VERSION); }
 
 // ---- Peak hold (shared) ----
 void holdPeak(int value, int &pk, uint32_t &until, uint32_t now) {
@@ -173,6 +178,7 @@ void setup() {
   Bridge.begin();
   Bridge.provide("bars", onBars);
   Bridge.provide("idle", onIdle);
+  Bridge.provide("version", onVersion);
 }
 
 void loop() {
