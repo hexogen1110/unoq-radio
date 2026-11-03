@@ -47,7 +47,7 @@ class _NullBackend:
         log.debug("LED %s(%s)", func, arg)
 
 
-STYLES = ["bars", "mirror", "dots", "meter"]   # must match the order in sketch.ino
+STYLES = ["bars", "mirror", "dots", "classic"]   # must match the order in sketch.ino
 
 
 class Led:
@@ -64,12 +64,10 @@ class Led:
             self.backend = _NullBackend()
             log.warning("LED backend: none (log only)")
 
-    def bars(self, levels, vu=(0, 0)):
-        """levels: 13 integers in 0..8; vu: L/R in 0..13.
-        Payload: "<style>|v0,...,v12|L,R" (the style travels with every frame, so the MCU
-        never gets out of sync after a reset)."""
-        self._send("bars", f"{self.style}|" + ",".join(str(int(v)) for v in levels)
-                   + f"|{int(vu[0])},{int(vu[1])}")
+    def bars(self, levels):
+        """levels: 13 integers in 0..8. Payload: "<style>|v0,...,v12" (the style travels with
+        every frame, so the MCU never gets out of sync after a reset)."""
+        self._send("bars", f"{self.style}|" + ",".join(str(int(v)) for v in levels))
 
     def set_style(self, style):
         self.style = max(0, min(len(STYLES) - 1, int(style)))

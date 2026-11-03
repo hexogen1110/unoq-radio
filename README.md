@@ -75,11 +75,11 @@ Optional: the official Bridge Python package `arduino_app_bricks` is not require
 - **Plug and play**: about a minute after power-on the service is running and the last speaker is reconnected. No login or PC needed.
 - **Web UI** (`http://<IP>:8080`): pick stations, volume, spectrum, LED style, Bluetooth, add or remove stations.
 - **Stations**: filter by genre with the chips above the list. **Manage stations → Check all streams** tests every URL on the board (green = OK, red = failed); tick *Hide stations that failed the check* to hide dead ones. Deleted default stations can be brought back with **Restore deleted defaults**.
-- **LED style** (under the volume slider, saved across reboots), all drawn like a vintage hi-fi VFD with faintly glowing unlit segments and peak-hold caps. The web page shows a live preview of the matrix:
-  - **VFD Bars**: classic spectrum bars with a bright top segment and falling peak caps.
-  - **Mirror**: bars grow up and down from a lit centre line; both halves are exact mirror images.
+- **LED style** (under the volume slider, saved across reboots; the web page shows a live preview). Unlit pixels are always off, and peak caps hang briefly before falling:
+  - **VFD Bars**: even-brightness bars with a brighter top segment, like a hi-fi VFD.
+  - **Mirror**: bars grow up and down from the centre line; both halves are exact mirror images.
   - **Dots**: "dot mode": only the current level and the peak cap of each band are lit.
-  - **L/R Meter**: horizontal left/right level meter like a cassette deck, with scale ticks and an "over" zone.
+  - **Classic**: gradient bars, dim at the bottom and brighter towards the top, with the brightest pixel on the top edge.
 - **No sound from the speaker**: make sure it is on and not grabbed by a phone, then press **Connect** on it in the web UI. The app re-establishes the A2DP link if needed.
 - **Shut down**: the **⏻ Shut down** button at the bottom of the page powers the board off cleanly (no SSH needed). Wait about 20 s before unplugging. It needs the sudoers rule that `install.sh` creates (only `shutdown -h now` is allowed, without a password).
 - **Spotify**: in the Spotify app, open the device list and pick **UNO Q Radio**.
@@ -141,7 +141,7 @@ Start with the diagnostics: open `http://<IP>:8080/api/diag` in a browser, or, i
 | No Bluetooth audio device without a local login | WirePlumber 0.5 only enables Bluetooth on an active logind seat (`monitor.bluez.seat-monitoring`) | `install.sh` writes `~/.config/wireplumber/wireplumber.conf.d/80-headless.conf` to disable it |
 | LEDs do not move; log shows `[Errno 13] Permission denied` | `/var/run/arduino-router.sock` is `root:arduino-router 660` | `sudo usermod -aG arduino-router $USER`, then reboot |
 | Log shows `No module named 'arduino'` | `arduino_app_bricks` is not installed | Safe to ignore: once the socket permission is fixed, `_RawSocketBackend` is used |
-| All LED styles look the same, or the bars look shifted | Old sketch on the MCU (check `MCU sketch:` in `/api/diag`) | `bash ~/unoq-radio/deploy/update.sh --sketch`. If an App Lab app is set to run at startup, it re-flashes its own sketch on every boot: turn that off in App Lab |
+| LED styles do not match the web preview, or the bars look shifted | Old sketch on the MCU (check `MCU sketch:` in `/api/diag`) | `bash ~/unoq-radio/deploy/update.sh --sketch`. If an App Lab app is set to run at startup, it re-flashes its own sketch on every boot: turn that off in App Lab |
 
 For a board installed with an older version, run `bash deploy/fix_headless.sh && sudo reboot` once.
 

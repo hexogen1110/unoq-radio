@@ -1,32 +1,29 @@
-// UNO Q Radio — MCU side (STM32U585): draw the spectrum on the 13x8 LED matrix
-// in the style of a vintage hi-fi VFD (vacuum fluorescent display).
+// UNO Q Radio — MCU side (STM32U585): draw the spectrum on the 13x8 LED matrix.
 //
 // Called from Linux over the Bridge:
-//   bars("<style>|b0,...,b12|L,R")   13 band levels 0..8, L/R level 0..13, style 0..3
-//   idle("")                         idle animation
+//   bars("<style>|b0,...,b12")   13 band levels 0..8, style 0..3 (see STYLE_* below)
+//   idle("")                     idle animation
+//   off("")                      blank the matrix (sent before Linux shuts down)
+//   version()                    returns SKETCH_VERSION (shown in /api/diag)
 //
-// VFD look: unlit segments glow faintly ("ghost" segments), lit segments have an even
-// brightness, and peak-hold caps hang for a moment before dropping one segment at a time.
+// Unlit pixels are always fully off; peak-hold caps hang for a moment, then drop one row at a time.
 #include <Arduino_LED_Matrix.h>
 #include <Arduino_RouterBridge.h>
 
 Arduino_LED_Matrix matrix;
 
-// Reported to Linux via Bridge "version" (shown in /api/diag) to confirm which sketch is running
-const char *SKETCH_VERSION = "unoq-radio sketch v3 (VFD styles: bars/mirror/dots/meter)";
+const char *SKETCH_VERSION = "unoq-radio sketch v4 (styles: bars/mirror/dots/classic)";
 
 const int COLS = 13, ROWS = 8;
 uint8_t frame[COLS * ROWS];          // brightness 0..7 per pixel (3-bit grayscale)
 
 // Display styles — keep in sync with STYLES in python/led.py
-enum { STYLE_BARS = 0, STYLE_MIRROR = 1, STYLE_DOTS = 2, STYLE_METER = 3, STYLE_COUNT };
+enum { STYLE_BARS = 0, STYLE_MIRROR = 1, STYLE_DOTS = 2, STYLE_CLASSIC = 3, STYLE_COUNT };
 
 // Brightness palette
-const uint8_t GHOST = 1;             // unlit VFD segment
-const uint8_t AXIS = 2;              // centre line / scale ticks
-const uint8_t LIT = 5;               // lit segment
-const uint8_t HOT = 6;               // top segment / overload zone
-const uint8_t PEAK = 7;              // peak-hold cap
+const uint8_t LIT = 5;               // lit segment (VFD-like even brightness)
+const uint8_t HOT = 6;               // top segment of a bar
+const uint8_t PEAK = 7;              // peak-hold cap / brightest edge
 
 const uint32_t PEAK_HOLD_MS = 700;
 const uint32_t PEAK_FALL_MS = 70;
@@ -36,41 +33,31 @@ volatile bool idleMode = true;
 volatile bool displayOff = false;    // set by off() before Linux shuts down
 volatile int style = STYLE_BARS;
 int target[COLS];                    // band levels 0..8 (written by the RPC thread)
-int vu[2];                           // L/R levels 0..13
 int peak[COLS];                      // per-band peak hold, 0..8
 uint32_t peakHoldUntil[COLS];
-int vuPeak[2];                       // per-channel peak hold, 0..13
-uint32_t vuPeakHoldUntil[2];
 uint32_t lastData = 0;
 
 inline void px(int row, int col, uint8_t v) {
   if (row >= 0 && row < ROWS && col >= 0 && col < COLS) frame[row * COLS + col] = v;
 }
 
-// Parse "a,b,c" into out[0..n-1], each clamped to 0..maxV. Returns the index after the field.
-int parseList(const String &s, int start, int *out, int n, int maxV) {
-  int k = 0, from = start, i = start;
-  for (; i <= (int)s.length(); i++) {
-    if (i == (int)s.length() || s[i] == ',' || s[i] == '|') {
-      if (k < n) out[k++] = constrain((int)s.substring(from, i).toInt(), 0, maxV);
-      from = i + 1;
-      if (i == (int)s.length() || s[i] == '|') break;
-    }
-  }
-  return i + 1;
-}
-
 // ---- RPC callbacks: parse only, never touch the LEDs here (different thread) ----
 void onBars(String s) {
-  int pos = 0;
+  int start = 0;
   int bar = s.indexOf('|');
-  if (bar >= 0) {                    // "<style>|bands|L,R"; a plain "bands" string still works
+  if (bar >= 0) {                    // "<style>|bands[|extra]"; a plain "bands" string still works
     int st = s.substring(0, bar).toInt();
     if (st >= 0 && st < STYLE_COUNT) style = st;
-    pos = bar + 1;
+    start = bar + 1;
   }
-  pos = parseList(s, pos, target, COLS, ROWS);
-  if (pos < (int)s.length()) parseList(s, pos, vu, 2, COLS);
+  int k = 0, from = start;
+  for (int i = start; i <= (int)s.length() && k < COLS; i++) {
+    if (i == (int)s.length() || s[i] == ',' || s[i] == '|') {
+      target[k++] = constrain((int)s.substring(from, i).toInt(), 0, ROWS);
+      from = i + 1;
+      if (i < (int)s.length() && s[i] == '|') break;
+    }
+  }
   hasNew = true;
   idleMode = false;
   displayOff = false;
@@ -82,17 +69,16 @@ void onOff(String) { displayOff = true; }
 
 String onVersion() { return String(SKETCH_VERSION); }
 
-// ---- Peak hold (shared) ----
-void holdPeak(int value, int &pk, uint32_t &until, uint32_t now) {
-  if (value >= pk) { pk = value; until = now + PEAK_HOLD_MS; }
-  else if (now > until && pk > 0) { pk--; until = now + PEAK_FALL_MS; }
+// ---- Peak hold ----
+void updatePeaks(uint32_t now) {
+  for (int c = 0; c < COLS; c++) {
+    if (target[c] >= peak[c]) { peak[c] = target[c]; peakHoldUntil[c] = now + PEAK_HOLD_MS; }
+    else if (now > peakHoldUntil[c] && peak[c] > 0) { peak[c]--; peakHoldUntil[c] = now + PEAK_FALL_MS; }
+  }
 }
 
-void ghostAll() { memset(frame, GHOST, sizeof(frame)); }
-
-// Style 0 — VFD bars: full ghost grid, even-brightness bars, bright top segment, peak caps
+// Style 0 — VFD bars: even-brightness bars, brighter top segment, peak cap above
 void drawBars() {
-  ghostAll();
   for (int c = 0; c < COLS; c++) {
     int h = target[c];
     for (int r = 0; r < h; r++) px(ROWS - 1 - r, c, r == h - 1 ? HOT : LIT);
@@ -100,14 +86,12 @@ void drawBars() {
   }
 }
 
-// Style 1 — mirror: a lit centre line (rows 3 and 4); every band grows the same number
-// of segments up and down from it, so the top and bottom halves are exact mirror images.
+// Style 1 — mirror: each band grows the same number of rows up from row 3 and down from
+// row 4 (the centre line), so the top and bottom halves are exact mirror images
 void drawMirror() {
   const int top = ROWS / 2 - 1, bottom = ROWS / 2;      // rows 3 and 4
-  ghostAll();
   for (int c = 0; c < COLS; c++) {
-    px(top, c, AXIS); px(bottom, c, AXIS);              // centre line is always visible
-    int h = (target[c] + 1) / 2;                        // 0..4 segments per side
+    int h = (target[c] + 1) / 2;                        // 0..4 rows per side
     for (int i = 0; i < h; i++) {
       uint8_t v = (i == h - 1) ? HOT : LIT;
       px(top - i, c, v);
@@ -118,46 +102,33 @@ void drawMirror() {
   }
 }
 
-// Style 2 — dots: classic "dot mode" — only the current level segment and the peak cap
-// are lit, over a ghost grid with a dim baseline
+// Style 2 — dots: only the current level and the peak cap of each band are lit
 void drawDots() {
-  ghostAll();
   for (int c = 0; c < COLS; c++) {
-    px(ROWS - 1, c, AXIS);
     if (target[c] > 0) px(ROWS - target[c], c, LIT);
     if (peak[c] > 0) px(ROWS - peak[c], c, PEAK);
   }
 }
 
-// Style 3 — L/R level meter: two horizontal bars like a cassette deck, scale ticks on the
-// top and bottom rows, the last three columns are the brighter "over" zone
-void drawMeter() {
-  memset(frame, 0, sizeof(frame));
+// Style 3 — classic: gradient bars, dim at the bottom and brighter towards the top,
+// the top edge of each bar is the brightest pixel, plus a falling peak cap
+void drawClassic() {
   for (int c = 0; c < COLS; c++) {
-    uint8_t tick = (c % 3 == 0 || c >= COLS - 3) ? AXIS : 0;
-    px(0, c, tick);
-    px(ROWS - 1, c, tick);
-  }
-  for (int ch = 0; ch < 2; ch++) {
-    int r0 = ch == 0 ? 1 : 4;                           // L: rows 1-3, R: rows 4-6
-    for (int c = 0; c < COLS; c++) {
-      uint8_t v = c < vu[ch] ? (c >= COLS - 3 ? HOT + 1 : LIT) : GHOST;
-      for (int r = r0; r < r0 + 3; r++) px(r, c, v);
-    }
-    if (vuPeak[ch] > vu[ch] && vuPeak[ch] > 0)
-      for (int r = r0; r < r0 + 3; r++) px(r, vuPeak[ch] - 1, PEAK);
+    int h = target[c];
+    for (int r = 0; r < h; r++)                         // r = 0 is the bottom row
+      px(ROWS - 1 - r, c, r == h - 1 ? PEAK : 1 + (r * 5) / (ROWS - 1));   // 1..6, top edge 7
+    if (peak[c] > h) px(ROWS - peak[c], c, PEAK);
   }
 }
 
 void drawSpectrum() {
-  uint32_t now = millis();
-  for (int c = 0; c < COLS; c++) holdPeak(target[c], peak[c], peakHoldUntil[c], now);
-  for (int ch = 0; ch < 2; ch++) holdPeak(vu[ch], vuPeak[ch], vuPeakHoldUntil[ch], now);
+  updatePeaks(millis());
+  memset(frame, 0, sizeof(frame));   // background is always fully off
   switch (style) {
-    case STYLE_MIRROR: drawMirror(); break;
-    case STYLE_DOTS:   drawDots(); break;
-    case STYLE_METER:  drawMeter(); break;
-    default:           drawBars(); break;
+    case STYLE_MIRROR:  drawMirror(); break;
+    case STYLE_DOTS:    drawDots(); break;
+    case STYLE_CLASSIC: drawClassic(); break;
+    default:            drawBars(); break;
   }
   matrix.draw(frame);
 }
