@@ -1,118 +1,162 @@
 # UNO Q Radio
 
-在 UNO Q 上用網頁選音源（網路電台 / Spotify Connect），透過藍牙喇叭播放，LED 矩陣同時顯示即時頻譜。
+Turn an Arduino UNO Q into a standalone network radio. Pick a source in a web page (internet radio or Spotify Connect), play it on a Bluetooth speaker, and watch a live spectrum on the UNO Q LED matrix.
 
-## 音源架構
+## Architecture
 
 ```
- 音源 (Source)                          共用輸出 AudioOutput
- ┌ RadioSource   ffmpeg ─ PCM ┐        ┌ FFT → LED 矩陣 / 網頁頻譜
- │                             ├─ write ┤
- └ SpotifySource librespot ─ PCM ┘      └ 主音量 → pacat → PipeWire → 藍牙喇叭
-              ▲ --onevent → librespot_event.py → POST /api/spotify/event（歌名、封面、暫停）
- SourceManager：同時只有一個音源輸出，「最後操作者優先」
-   - 手機 Spotify 按播放 → 自動停掉電台、切到 Spotify
-   - 網頁點電台 → 中斷 Spotify 連線、切到電台
+ Sources                                Shared output (AudioOutput)
+ ┌ RadioSource   ffmpeg ─── PCM ┐        ┌ FFT → LED matrix / web spectrum
+ │                              ├─ write ┤
+ └ SpotifySource librespot ─ PCM ┘       └ master volume → pacat → PipeWire → Bluetooth speaker
+              ▲ --onevent → librespot_event.py → POST /api/spotify/event (track, cover, pause)
+ SourceManager: one source at a time, "last action wins"
+   - press play in the Spotify app → radio stops, output switches to Spotify
+   - pick a station in the web UI  → Spotify is disconnected, output switches to radio
 ```
 
-新增音源（例如 AirPlay：`shairport-sync --output=stdout`、本機音樂檔、USB 隨身碟）時，只要寫一個 `src_xxx.py`，把 PCM（s16le / 44.1 kHz / stereo）丟給 `out.write()`，再到 `SourceManager` 註冊即可。
+To add a new source (for example AirPlay via `shairport-sync --output=stdout`, local music files, a USB stick), write a `src_xxx.py` that feeds PCM (s16le / 44.1 kHz / stereo) to `out.write()` and register it in `SourceManager`.
 
+## Files
 
-## 目錄
-
-| 檔案 | 說明 |
+| File | Purpose |
 |---|---|
-| `python/main.py` | Web Server（只用標準函式庫）與 API |
-| `python/audio_out.py` | 共用輸出：主音量、FFT 頻譜、LED 延遲對齊、pacat |
-| `python/src_radio.py` | 音源：網路電台（ffmpeg） |
-| `python/src_spotify.py` | 音源：Spotify Connect（librespot） |
-| `python/librespot_event.py` | librespot 事件掛鉤 |
-| `python/bt.py` | 藍牙喇叭管理 |
-| `python/led.py` | 送頻譜到 MCU（自動選 Bridge 後端） |
-| `python/static/index.html` | 手機用網頁介面 |
-| `python/stations.json` | 電台清單（網頁上也能新增/刪除） |
-| `sketch/sketch.ino` | MCU 端 LED 顯示 |
-| `deploy/install.sh` | 安裝腳本 |
-| `deploy/unoq-radio.service` | systemd 使用者服務 |
-| `deploy/fix_headless.sh` | 已安裝舊版的一次性修正（WirePlumber 無頭模式、LED socket 權限） |
-| `deploy/diag.sh` | 唯讀診斷腳本（不需要服務在跑） |
+| `python/main.py` | Web server (standard library only) and API |
+| `python/audio_out.py` | Shared output: master volume, FFT spectrum, LED delay alignment, pacat |
+| `python/src_radio.py` | Source: internet radio (ffmpeg) |
+| `python/src_spotify.py` | Source: Spotify Connect (librespot) |
+| `python/librespot_event.py` | librespot event hook |
+| `python/bt.py` | Bluetooth speaker management |
+| `python/led.py` | Sends the spectrum to the MCU (picks a Bridge backend automatically) |
+| `python/static/index.html` | Mobile-friendly web UI |
+| `python/stations.json` | Default station list; edits made in the web UI are saved to `stations.user.json` (git-ignored) |
+| `sketch/sketch.ino` | MCU side: LED matrix rendering, 4 display styles |
+| `deploy/install.sh` | Installer |
+| `deploy/unoq-radio.service` | systemd user service |
+| `deploy/fix_headless.sh` | One-off fix for boards installed with an older installer (WirePlumber headless mode, LED socket permission) |
+| `deploy/diag.sh` | Read-only diagnostics script (works even when the service is down) |
 
-## 安裝步驟
+## Installation (first time)
 
-1. **UNO Q 連上家裡 Wi-Fi**（Station 模式）。串流電台需要網際網路，所以不要用熱點（AP）模式。
-2. 把整個 `unoq-radio` 資料夾複製到 UNO Q，例如 `~/unoq-radio`。
-3. **上傳 MCU sketch**：
+Run everything below on the UNO Q as the `arduino` user. From a PC use `ssh arduino@<IP>`, or `adb shell` followed by `su - arduino`.
+
+1. **Connect the UNO Q to your home Wi-Fi** (station mode). Streaming needs internet access, so do not use access-point mode.
+2. **Get the code**:
+   ```bash
+   sudo apt install -y git
+   git clone https://github.com/hexogen1110/unoq-radio.git ~/unoq-radio
+   ```
+   If the repository is private, use a GitHub Personal Access Token as the password.
+3. **Upload the MCU sketch**:
    ```bash
    arduino-cli compile --fqbn arduino:zephyr:unoq --upload ~/unoq-radio/sketch
    ```
-   也可以在 App Lab 建一個空 App，把 sketch 貼進去上傳。
-4. **（建議）安裝官方 Bridge Python 套件**，讓非容器的 Python 也能呼叫 MCU：
-   ```bash
-   pip install --break-system-packages \
-     https://github.com/arduino/app-bricks-py/releases/download/release%2F0.8.0/arduino_app_bricks-0.8.0-py3-none-any.whl
-   ```
-   沒裝的話，`led.py` 會改用 `/var/run/arduino-router.sock` 直接送 MsgPack-RPC。
-5. **執行安裝腳本**：
+   Alternatively, create an empty app in App Lab, paste the sketch and upload it.
+4. **Run the installer** (asks for your sudo password):
    ```bash
    cd ~/unoq-radio && bash deploy/install.sh
    ```
-6. 手機連同一個 Wi-Fi，開 `http://<主機名>.local:8080`（Android 若不支援 `.local`，就用 IP）。
-7. 在網頁「藍牙音訊輸出」區塊按 **搜尋藍牙裝置**（喇叭先進入配對模式），清單會即時出現裝置名稱、訊號強度和類型（喇叭／耳機／其他）→ 按 **配對並連線**。
-   - 連上後會自動設為 PipeWire 預設輸出；如果正在播放，會自動切到新喇叭。
-   - 記住最後一次連線的裝置，開機自動重連；「忘記」會解除配對。
-   - 預設只顯示音訊裝置（依 Icon `audio-*` 或 A2DP Audio Sink UUID 判斷），可以取消勾選看全部。
+   It installs the packages, enables PipeWire / Bluetooth / mDNS, configures WirePlumber for headless use, adds the user to the `arduino-router` group and registers the systemd service.
+5. **Reboot once**: `sudo reboot`. The `arduino-router` group only takes effect after a reboot; the LEDs stay dark until then.
+6. On a phone on the same Wi-Fi, open `http://<hostname>.local:8080` (use the IP if your Android phone does not resolve `.local`).
+7. In the **Bluetooth audio output** card, put the speaker in pairing mode and press **Scan for devices**. The list updates live with name, signal strength and type (speaker / headphones / other). Press **Pair & connect**.
+   - The speaker becomes the PipeWire default output; if something is playing it moves to the new speaker.
+   - The last speaker is remembered and reconnected at boot; **Forget** unpairs it.
+   - By default only audio devices are listed (Icon `audio-*` or the A2DP Audio Sink UUID); untick the box to see everything.
+
+Optional: the official Bridge Python package `arduino_app_bricks` is not required. Without it, `led.py` talks MsgPack-RPC directly to `/var/run/arduino-router.sock`.
+
+## Everyday use
+
+- **Plug and play**: about a minute after power-on the service is running and the last speaker is reconnected. No login or PC needed.
+- **Web UI** (`http://<IP>:8080`): pick stations, volume, spectrum, LED style, Bluetooth, add or remove stations.
+- **LED style**: choose **Bars**, **Mirror**, **Peaks** or **Waterfall** under the volume slider. The choice is saved and survives reboots.
+- **No sound from the speaker**: make sure it is on and not grabbed by a phone, then press **Connect** on it in the web UI. The app re-establishes the A2DP link if needed.
+- **Spotify**: in the Spotify app, open the device list and pick **UNO Q Radio**.
+
+## Updating
+
+After you `git push` changes from your PC, run on the UNO Q:
+
+```bash
+cd ~/unoq-radio
+git pull
+systemctl --user restart unoq-radio
+```
+
+| Changed files | Extra step |
+|---|---|
+| `python/` | the restart above is enough |
+| `sketch/` | re-run step 3 to upload the sketch |
+| `deploy/install.sh`, `deploy/unoq-radio.service` | re-run `bash deploy/install.sh` |
+
+Stations edited in the web UI live in `stations.user.json` and settings in `config.json`. Both are git-ignored, so `git pull` never conflicts with or overwrites them.
+
+If `git pull` refuses because of local changes (usually from editing files directly on the board), use `git stash` and pull again, or `git checkout -- .` to discard them.
+
+## Service management
+
+```bash
+systemctl --user status unoq-radio        # status
+systemctl --user restart unoq-radio       # restart
+systemctl --user stop unoq-radio          # stop (still starts at boot)
+systemctl --user disable --now unoq-radio # stop and disable autostart
+journalctl --user -u unoq-radio -f        # follow the log
+```
+
+When you come in through `adb shell` instead of SSH, `systemctl --user` may not find the user bus. Run `su - arduino` and then `export XDG_RUNTIME_DIR=/run/user/$(id -u)` first.
 
 ## Spotify Connect
 
-- **需求**：Spotify **Premium**，手機和 UNO Q 在同一個區網。
-- **原理**：用開源的 [librespot](https://github.com/librespot-org/librespot) 讓 UNO Q 變成 Spotify Connect 接收端。手機 App 的「裝置」清單會出現 **UNO Q Radio**，選取、播放、切歌都在手機上操作；網頁顯示歌名、封面和進度。
-- **安裝**：`install.sh` 會詢問是否安裝（用 raspotify 套件取得 arm64 版 librespot，並停用它自己的服務）。也可以用 `cargo install librespot` 自行編譯，在 A53 上會花比較久。
-- **登入**：第一次在手機上選取裝置時，會透過 Zeroconf 自動授權，憑證快取在 `~/.cache/unoq-radio/librespot`。
-- **設定**：網頁 → Spotify 分頁 → 設定，可以改裝置名稱或停用。
-- **限制**：網頁無法直接選 Spotify 歌曲（官方 Spotify 沒有提供 Linux arm64 用戶端，Web API 也不能串流音訊）。網頁上的「停止」等於中斷 Spotify 連線。
+- **Requirements**: Spotify **Premium**; phone and UNO Q on the same LAN.
+- **How it works**: the open-source [librespot](https://github.com/librespot-org/librespot) turns the UNO Q into a Spotify Connect receiver. **UNO Q Radio** shows up in the app's device list; play, skip and so on happen on the phone, and the web UI shows track, cover art and progress.
+- **Install**: `install.sh` asks whether to install it (it uses the raspotify package to get an arm64 librespot and disables raspotify's own service). You can also build it with `cargo install librespot`, which takes a while on the A53.
+- **Sign-in**: the first time you pick the device on the phone, Zeroconf authorizes it automatically. Credentials are cached in `~/.cache/unoq-radio/librespot`.
+- **Settings**: web UI → Spotify tab → Settings, to rename the device or disable it.
+- **Limitations**: you cannot browse Spotify songs from the web UI (there is no official Spotify client for Linux arm64, and the Web API cannot stream audio). **Stop** in the web UI disconnects the Spotify session.
 
-## 已測試環境
+## Tested with
 
-UNO Q（Debian）、PipeWire 1.4.2、WirePlumber 0.5.8、BlueZ 5.82，搭配 Marshall ACTON III 藍牙喇叭。
+UNO Q (Debian), PipeWire 1.4.2, WirePlumber 0.5.8, BlueZ 5.82, Marshall ACTON III Bluetooth speaker.
 
-## 疑難排解
+## Troubleshooting
 
-先看診斷資料：瀏覽器開 `http://<IP>:8080/api/diag`；或者在服務沒跑時，於 PC 執行
-`Get-Content deploy\diag.sh -Raw | ssh arduino@<IP> "tr -d '\r' | bash" > diag.txt`。
+Start with the diagnostics: open `http://<IP>:8080/api/diag` in a browser, or, if the service is not running, run this on the PC:
+`Get-Content deploy\diag.sh -Raw | ssh arduino@<IP> "tr -d '\r' | bash" > diag.txt`
 
-| 症狀 | 原因 | 解法 |
+| Symptom | Cause | Fix |
 |---|---|---|
-| 網頁顯示「已連線，但找不到 PipeWire 藍牙 sink」，`pactl list short sinks` 只有 `auto_null` | 喇叭自動回連時只建立了 ACL／AVRCP，沒有建立 A2DP（音訊）profile | `bt.py` 會自動指定 A2DP Sink 重連，必要時整個斷線再連；手動做法：`bluetoothctl connect <MAC> 0000110b-0000-1000-8000-00805f9b34fb` |
-| 沒有本機登入時藍牙音訊不出現 | WirePlumber 0.5 預設只在 logind 的 active seat 啟用藍牙（`monitor.bluez.seat-monitoring`） | `install.sh` 會寫入 `~/.config/wireplumber/wireplumber.conf.d/80-headless.conf` 把它關掉 |
-| LED 不動，log 出現 `[Errno 13] Permission denied` | `/var/run/arduino-router.sock` 是 `root:arduino-router 660` | `sudo usermod -aG arduino-router $USER`，然後重開機 |
-| log 出現 `No module named 'arduino'` | 沒有安裝 `arduino_app_bricks` | 可以忽略：取得 socket 權限後會改用 `_RawSocketBackend` |
+| Web UI says "Connected, but no PipeWire Bluetooth sink found"; `pactl list short sinks` only shows `auto_null` | The speaker auto-reconnected with ACL/AVRCP only; the A2DP (audio) profile was never set up | `bt.py` now connects the A2DP Sink profile explicitly and, if needed, does a full reconnect. Manually: `bluetoothctl connect <MAC> 0000110b-0000-1000-8000-00805f9b34fb` |
+| No Bluetooth audio device without a local login | WirePlumber 0.5 only enables Bluetooth on an active logind seat (`monitor.bluez.seat-monitoring`) | `install.sh` writes `~/.config/wireplumber/wireplumber.conf.d/80-headless.conf` to disable it |
+| LEDs do not move; log shows `[Errno 13] Permission denied` | `/var/run/arduino-router.sock` is `root:arduino-router 660` | `sudo usermod -aG arduino-router $USER`, then reboot |
+| Log shows `No module named 'arduino'` | `arduino_app_bricks` is not installed | Safe to ignore: once the socket permission is fixed, `_RawSocketBackend` is used |
+| Only one LED style / style buttons do nothing | Old sketch on the MCU | Re-upload `sketch/sketch.ino` (installation step 3) |
 
-舊版已經安裝過的板子，執行一次 `bash deploy/fix_headless.sh && sudo reboot` 即可。
+For a board installed with an older version, run `bash deploy/fix_headless.sh && sudo reboot` once.
 
-## 手動測試（除錯用）
+## Manual tests (debugging)
 
 ```bash
-# 藍牙
+# Bluetooth
 bluetoothctl            # power on → scan on → pair XX:.. → trust XX:.. → connect XX:..
-pactl list short sinks  # 應看到 bluez_output.XX_XX... 的 sink
-# 音訊鏈
+pactl list short sinks  # should list a bluez_output.XX_XX... sink
+# Audio chain
 ffmpeg -i https://ice1.somafm.com/groovesalad-128-mp3 -f s16le -ac 2 -ar 44100 - | pacat --raw --format=s16le --rate=44100 --channels=2
-# 服務
+# Service
 journalctl --user -u unoq-radio -f
 ```
 
-## 調整
+## Tuning
 
-- **頻譜比聲音早**：網頁 → 進階 → 頻譜延遲，藍牙通常抓 150–300 ms。
-- **頻譜靈敏度**：`audio_out.py` 的 `(db + 36) / 36`，36 改小 → 對比更強、跳動更大。
-- **頻段範圍**：`audio_out.py` 的 `np.logspace(... 60 ... 12000 ...)`。
-- **Port**：環境變數 `RADIO_PORT`。
+- **Spectrum ahead of the sound**: web UI → Advanced → spectrum delay; Bluetooth is usually 150–300 ms.
+- **Spectrum sensitivity**: `(db + 36) / 36` in `audio_out.py`; a smaller 36 gives more contrast and livelier bars.
+- **Frequency range**: `np.logspace(... 60 ... 12000 ...)` in `audio_out.py`.
+- **Port**: environment variable `RADIO_PORT`.
 
-## 已知限制與注意事項
+## Known limitations
 
-- **Wi-Fi 與藍牙共用 2.4 GHz**：同一顆無線模組同時串流 Wi-Fi 和 A2DP，可能斷音。如果有斷音，讓 UNO Q 連 **5 GHz** Wi-Fi。
-- **App Lab 容器**：本專案設計成直接跑在 Debian 系統層（systemd user service），因為 App Lab 的 Python 容器預設不一定能存取 PipeWire 和藍牙。
-- **音量**：在 Python 做軟體增益，FFT 用的是調整音量前的訊號，所以調小聲 LED 頻譜也不會縮。喇叭本身的音量鍵仍然有效。
-- **歌名**：解析 ffmpeg 輸出的 ICY `StreamTitle`，只有部分電台會提供。
-- **安全性**：網頁沒有登入驗證，只適合在家用區網使用。
-- **診斷頁** `/api/diag` 沒有驗證，會列出系統資訊、藍牙 MAC 和 log，只適合在家用區網使用。
+- **Wi-Fi and Bluetooth share 2.4 GHz**: streaming Wi-Fi and A2DP through the same radio can cause dropouts. If you hear gaps, put the UNO Q on **5 GHz** Wi-Fi.
+- **App Lab container**: this project runs directly on Debian (systemd user service) because the App Lab Python container does not necessarily have access to PipeWire and Bluetooth.
+- **Volume**: software gain in Python. The FFT uses the signal before the volume stage, so turning it down does not shrink the LED spectrum. The speaker's own volume buttons still work.
+- **Track titles**: parsed from the ICY `StreamTitle` in ffmpeg's output; only some stations send it.
+- **Security**: the web UI has no authentication, so use it on your home LAN only. The diagnostics page `/api/diag` is also unauthenticated and exposes system info, the Bluetooth MAC and logs.

@@ -1,5 +1,6 @@
-# 板上執行時產生的設定（含藍牙 MAC、音量等）
+# Runtime state created on the board (Bluetooth MAC, volume, user stations)
 python/config.json
+python/stations.user.json
 *.tmp
 *.bak
 __pycache__/

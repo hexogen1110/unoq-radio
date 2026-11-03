@@ -1,8 +1,8 @@
-"""藍牙音訊裝置管理（包 bluetoothctl + pactl）。
+"""Bluetooth audio device management (wraps bluetoothctl + pactl).
 
-- scan_start(): 背景掃描，即時收集裝置名稱 / RSSI / 類型
-- list_devices(): 掃到的 + 已配對的裝置，標示是否為音訊裝置
-- connect(mac): 配對（NoInputNoOutput agent）→ trust → connect → 設為預設音訊輸出
+- scan_start(): background scan, collects device name / RSSI / type live
+- list_devices(): discovered + paired devices, flagged as audio or not
+- connect(mac): pair (NoInputNoOutput agent) → trust → connect → set as default audio output
 """
 import logging
 import re
@@ -39,7 +39,7 @@ def _ctl(*args, timeout=15):
 
 
 class _Session:
-    """互動式 bluetoothctl：送指令後等待特定輸出（配對需要 agent 常駐）。"""
+    """Interactive bluetoothctl: send commands and wait for specific output (pairing needs a resident agent)."""
 
     def __init__(self):
         self.p = subprocess.Popen(["bluetoothctl"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -59,7 +59,7 @@ class _Session:
         self.p.stdin.flush()
 
     def wait_for(self, ok, fail=(), timeout=20):
-        """等到某行包含 ok 中任一字串 → True；包含 fail → False；逾時 → None"""
+        """Wait until a line contains any string in ok → True; any in fail → False; timeout → None"""
         start = len(self.lines)
         end = time.time() + timeout
         with self._cv:
@@ -84,12 +84,12 @@ class _Session:
 class BtManager:
     def __init__(self):
         self.found = {}          # mac -> {"name", "rssi", "seen"}
-        self.meta = {}           # mac -> {"icon", "audio"}（info 查詢快取）
+        self.meta = {}           # mac -> {"icon", "audio"} (cache of info queries)
         self.scanning = False
-        self.busy = ""           # 正在連線的 MAC
+        self.busy = ""           # MAC currently being connected
         self._lock = threading.Lock()
 
-    # ---------------- 掃描 ----------------
+    # ---------------- Scan ----------------
     def scan_start(self, seconds=12):
         with self._lock:
             if self.scanning:
@@ -143,7 +143,7 @@ class BtManager:
         if name and mac in self.found:
             self.found[mac]["name"] = name
 
-    # ---------------- 清單 / 狀態 ----------------
+    # ---------------- List / status ----------------
     def info(self, mac):
         out = _ctl("info", mac)
         icon = (re.search(r"Icon: (\S+)", out) or [None, ""])[1]
@@ -167,15 +167,15 @@ class BtManager:
                 inf = {"mac": mac, "name": f.get("name", ""), "paired": False, "connected": False, **meta}
             name = inf["name"] or f.get("name") or paired.get(mac, "")
             if _MAC_ONLY.match(name.replace("-", ":")):
-                name = ""                          # 沒有名稱的裝置，bluetoothctl 會用 MAC 當名字
+                name = ""                          # unnamed devices: bluetoothctl uses the MAC as the name
             res.append({**inf, "name": name, "rssi": f.get("rssi"),
                         "current": mac == current_mac, "busy": mac == self.busy})
-        # 排序：目前裝置 → 已配對 → 音訊 → 訊號強
+        # sort: current device → paired → audio → strongest signal
         res.sort(key=lambda d: (not d["current"], not d["paired"], not d["audio"],
                                 -(d["rssi"] if d["rssi"] is not None else -200)))
         return {"scanning": self.scanning, "busy": self.busy, "devices": res}
 
-    # ---------------- 連線 ----------------
+    # ---------------- Connect ----------------
     def connect(self, mac):
         self.busy = mac
         steps = []
@@ -183,7 +183,7 @@ class BtManager:
         try:
             _ctl("power", "on")
             s = _Session()
-            s.send("agent NoInputNoOutput")      # 喇叭多半是 Just Works，不需輸入 PIN
+            s.send("agent NoInputNoOutput")      # most speakers use Just Works, no PIN needed
             s.send("default-agent")
             s.wait_for(["Default agent request successful", "Agent registered"], timeout=3)
 
@@ -193,27 +193,27 @@ class BtManager:
                                ["Failed to pair", "not available", "AuthenticationFailed"], timeout=30)
                 steps.append(f"pair: {r}")
                 if not r:
-                    return self._result(mac, False, "配對失敗：請確認喇叭在配對模式（燈號快閃）且沒有連著其他手機", steps, s)
-            s.send(f"trust {mac}")               # trust 後喇叭開機會自動重連
+                    return self._result(mac, False, "Pairing failed: make sure the speaker is in pairing mode (LED blinking fast) and not connected to another phone", steps, s)
+            s.send(f"trust {mac}")               # once trusted, the speaker reconnects automatically when powered on
             s.wait_for(["trust succeeded"], timeout=5)
 
             s.send(f"connect {mac}")
             r = s.wait_for(["Connection successful"], ["Failed to connect", "not available"], timeout=20)
             steps.append(f"connect: {r}")
             if not r:
-                return self._result(mac, False, "連線失敗：喇叭可能已連著其他裝置，或需要重新開機", steps, s)
+                return self._result(mac, False, "Connection failed: the speaker may be connected to another device, or needs a power cycle", steps, s)
 
             sink = self._set_default_sink(mac)
             steps.append(f"sink: {sink}")
             if not sink:
-                # ACL 連上但 A2DP 沒建立（喇叭自動重連時常見）→ 指定 A2DP Sink profile 再連一次
+                # ACL is up but A2DP was not set up (common when the speaker auto-reconnects) → connect the A2DP Sink profile explicitly
                 s.send(f"connect {mac} {A2DP_SINK_FULL}")
                 r = s.wait_for(["Connection successful", "AlreadyConnected"], ["Failed to connect"], timeout=15)
                 steps.append(f"connect a2dp: {r}")
                 sink = self._set_default_sink(mac)
                 steps.append(f"sink(a2dp): {sink}")
             if not sink:
-                # 最後手段：整個斷線重連
+                # last resort: full disconnect and reconnect
                 s.send(f"disconnect {mac}")
                 s.wait_for(["Successful disconnected", "Disconnection successful"], timeout=8)
                 time.sleep(2)
@@ -223,7 +223,7 @@ class BtManager:
                 sink = self._set_default_sink(mac, wait=10)
                 steps.append(f"sink(reconnect): {sink}")
             if not sink:
-                return self._result(mac, True, "已連線，但找不到 PipeWire 藍牙 sink（檢查 libspa-0.2-bluetooth）", steps, s)
+                return self._result(mac, True, "Connected, but no PipeWire Bluetooth sink found (check libspa-0.2-bluetooth / WirePlumber)", steps, s)
             return self._result(mac, True, "", steps, s)
         finally:
             if s:

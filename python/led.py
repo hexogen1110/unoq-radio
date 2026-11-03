@@ -1,9 +1,9 @@
-"""LED 矩陣輸出：把 13 個頻段值送到 MCU。
+"""LED matrix output: send the 13 band levels to the MCU.
 
-後端優先順序：
-1. arduino.app_utils.Bridge（App Lab 或用 wheel 安裝的官方套件）
-2. 直接對 /var/run/arduino-router.sock 送 MsgPack-RPC notify
-3. 都失敗 → 只印 log（方便在 PC 上開發測試）
+Backend priority:
+1. arduino.app_utils.Bridge (App Lab, or the official package installed from the wheel)
+2. MsgPack-RPC notify sent directly to /var/run/arduino-router.sock
+3. both fail → log only (handy for development on a PC)
 """
 import logging
 import socket
@@ -20,7 +20,7 @@ class _AppUtilsBackend:
 
     def send(self, func, arg):
         if self.notify:
-            self.notify(func, arg)      # 不等回應，較快
+            self.notify(func, arg)      # fire-and-forget, faster
         else:
             self.b.call(func, arg)
 
@@ -36,7 +36,7 @@ class _RawSocketBackend:
     def send(self, func, arg):
         # MsgPack-RPC notification: [2, method, params]
         self.s.send(self.msgpack.packb([2, func, [arg]]))
-        try:                      # 丟掉 router 可能回來的資料，避免 buffer 塞滿
+        try:                      # drain anything the router sends back so the buffer never fills up
             self.s.recv(4096)
         except BlockingIOError:
             pass
@@ -47,8 +47,12 @@ class _NullBackend:
         log.debug("LED %s(%s)", func, arg)
 
 
+STYLES = ["bars", "mirror", "peaks", "waterfall"]   # must match the order in sketch.ino
+
+
 class Led:
-    def __init__(self):
+    def __init__(self, style=0):
+        self.style = style if 0 <= style < len(STYLES) else 0
         for cls in (_AppUtilsBackend, _RawSocketBackend):
             try:
                 self.backend = cls()
@@ -61,8 +65,12 @@ class Led:
             log.warning("LED backend: none (log only)")
 
     def bars(self, levels):
-        """levels: 13 個 0~8 整數"""
-        self._send("bars", ",".join(str(int(v)) for v in levels))
+        """levels: 13 integers in 0..8. Payload: "<style>|v0,v1,...,v12" (style travels with
+        every frame, so the MCU never gets out of sync after a reset)."""
+        self._send("bars", f"{self.style}|" + ",".join(str(int(v)) for v in levels))
+
+    def set_style(self, style):
+        self.style = max(0, min(len(STYLES) - 1, int(style)))
 
     def idle(self):
         self._send("idle", "")

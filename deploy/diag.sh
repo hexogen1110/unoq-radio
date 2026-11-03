@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# UNO Q Radio 唯讀診斷：在板子上以 arduino 使用者執行
+# UNO Q Radio read-only diagnostics: run on the board as the arduino user
 export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 run(){ echo; echo "===== $1 ====="; shift; "$@" 2>&1; }
 run id id

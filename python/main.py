@@ -1,12 +1,12 @@
-"""UNO Q Radio — 本地 Web Server + 音源管理。
+"""UNO Q Radio — local web server + audio source management.
 
-音源（Source）：
-  - radio   ：網路電台（網頁選台）
-  - spotify ：Spotify Connect（手機 Spotify App 選「UNO Q Radio」）
-同一時間只有一個音源輸出；「最後操作者優先」——
-手機按 Spotify 播放會自動停掉電台；網頁選電台會把正在播的 Spotify 斷開。
+Sources:
+  - radio   : internet radio (station picked in the web UI)
+  - spotify : Spotify Connect (pick "UNO Q Radio" in the Spotify app)
+Only one source plays at a time; "last action wins":
+pressing play in Spotify stops the radio; picking a station in the web UI disconnects Spotify.
 
-啟動：python3 main.py → http://<主機名>.local:8080
+Run: python3 main.py → http://<hostname>.local:8080
 """
 import json
 import logging
@@ -17,12 +17,13 @@ from pathlib import Path
 
 from audio_out import AudioOutput
 from bt import BtManager
-from led import Led
+from led import STYLES, Led
 from src_radio import RadioSource
 from src_spotify import SpotifySource
 
 BASE = Path(__file__).resolve().parent
-STATIONS_FILE = BASE / "stations.json"
+STATIONS_DEFAULT = BASE / "stations.json"          # default list shipped in the repo
+STATIONS_FILE = BASE / "stations.user.json"        # edits from the web UI go here (git-ignored, so git pull never conflicts)
 CONFIG_FILE = BASE / "config.json"
 PORT = int(os.environ.get("RADIO_PORT", 8080))
 
@@ -45,20 +46,20 @@ def save(path, data):
 
 
 DEFAULT_CONFIG = {
-    "volume": 60, "display_delay_ms": 250, "bt_mac": "", "last_station": None,
+    "volume": 60, "display_delay_ms": 250, "led_style": 0, "bt_mac": "", "last_station": None,
     "spotify": {"enabled": True, "device_name": "UNO Q Radio", "bitrate": 320, "binary": "librespot"},
 }
 config = load(CONFIG_FILE, DEFAULT_CONFIG)
-stations = load(STATIONS_FILE, [])
+stations = load(STATIONS_FILE, None) or load(STATIONS_DEFAULT, [])
 _stations_lock = threading.Lock()
 
 
 def save_config():
-    config.update(volume=out.volume, display_delay_ms=out.display_delay_ms)
+    config.update(volume=out.volume, display_delay_ms=out.display_delay_ms, led_style=out.led.style)
     save(CONFIG_FILE, config)
 
 
-# ---------------- 音源管理 ----------------
+# ---------------- Source management ----------------
 class SourceManager:
     def __init__(self):
         self.active = None            # "radio" / "spotify" / None
@@ -77,7 +78,7 @@ class SourceManager:
                 spotify.active = False
                 spotify.suppress = True
                 if spotify.state == "playing":
-                    threading.Thread(target=spotify.kick, daemon=True).start()   # 斷開手機的播放
+                    threading.Thread(target=spotify.kick, daemon=True).start()   # disconnect playback on the phone
             out.silence()
             self.active = name
             spotify.active = (name == "spotify")
@@ -94,7 +95,7 @@ class SourceManager:
             out.silence()
 
 
-out = AudioOutput(Led(), volume=config["volume"], display_delay_ms=config["display_delay_ms"])
+out = AudioOutput(Led(config["led_style"]), volume=config["volume"], display_delay_ms=config["display_delay_ms"])
 mgr = SourceManager()
 radio = RadioSource(out)
 spotify = SpotifySource(out, config["spotify"], on_activate=mgr.activate,
@@ -104,12 +105,13 @@ bt = BtManager()
 
 def full_status():
     return {"source": mgr.active, "volume": out.volume, "display_delay_ms": out.display_delay_ms,
-            "levels": out.levels, "radio": radio.status(), "spotify": spotify.status(),
+            "levels": out.levels,
+            "led_style": out.led.style, "led_styles": STYLES, "radio": radio.status(), "spotify": spotify.status(),
             "bt_mac": config.get("bt_mac", "")}
 
 
 
-# ---------------- 唯讀診斷 ----------------
+# ---------------- Read-only diagnostics ----------------
 DIAG_CMDS = [
     ("id", ["id"]),
     ("env", ["sh", "-c", "echo XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR; echo DBUS=$DBUS_SESSION_BUS_ADDRESS; ls -la $XDG_RUNTIME_DIR 2>&1 | head -30"]),
@@ -203,8 +205,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "bad json"}, 400)
         p = self.path
 
-        # ---- 通用播放控制 ----
-        if p == "/api/play":                              # 播放電台
+        # ---- Playback control ----
+        if p == "/api/play":                              # play a station
             st = next((s for s in stations if s["id"] == d.get("id")), None)
             if not st:
                 return self._json({"error": "station not found"}, 404)
@@ -220,16 +222,20 @@ class Handler(BaseHTTPRequestHandler):
             out.set_volume(d.get("volume", out.volume))
             save_config()
             self._json({"volume": out.volume})
+        elif p == "/api/led/style":
+            out.led.set_style(d.get("style", 0))
+            save_config()
+            self._json({"led_style": out.led.style})
         elif p == "/api/delay":
             out.display_delay_ms = max(0, min(1000, int(d.get("ms", 250))))
             save_config()
             self._json({"display_delay_ms": out.display_delay_ms})
 
-        # ---- 電台清單 ----
+        # ---- Station list ----
         elif p == "/api/stations":
             name, url = d.get("name", "").strip(), d.get("url", "").strip()
             if not name or not url.startswith(("http://", "https://")):
-                return self._json({"error": "需要名稱與 http(s) 網址"}, 400)
+                return self._json({"error": "Name and http(s) URL are required"}, 400)
             with _stations_lock:
                 new_id = max([s["id"] for s in stations] + [0]) + 1
                 stations.append({"id": new_id, "name": name, "url": url})
@@ -242,18 +248,18 @@ class Handler(BaseHTTPRequestHandler):
             self._json(stations)
 
         # ---- Spotify ----
-        elif p == "/api/spotify/event":                   # librespot --onevent（只接受本機）
+        elif p == "/api/spotify/event":                   # librespot --onevent (localhost only)
             if self.client_address[0] not in ("127.0.0.1", "::1"):
                 return self._json({"error": "forbidden"}, 403)
             spotify.handle_event(d)
             self._json({"ok": True})
-        elif p == "/api/spotify/kick":                    # 中斷目前的 Spotify 連線
+        elif p == "/api/spotify/kick":                    # drop the current Spotify session
             if mgr.active == "spotify":
                 mgr.stop_all()
             else:
                 threading.Thread(target=spotify.kick, daemon=True).start()
             self._json({"ok": True})
-        elif p == "/api/spotify/config":                  # 啟用/停用、改裝置名稱
+        elif p == "/api/spotify/config":                  # enable/disable, rename device
             sc = config["spotify"]
             if "device_name" in d and d["device_name"].strip():
                 sc["device_name"] = d["device_name"].strip()[:40]
@@ -264,10 +270,10 @@ class Handler(BaseHTTPRequestHandler):
             if mgr.active == "spotify":
                 mgr.stop_all()
             if sc["enabled"]:
-                threading.Thread(target=spotify.kick, daemon=True).start()   # 以新設定重啟
+                threading.Thread(target=spotify.kick, daemon=True).start()   # restart with the new settings
             self._json(spotify.status())
 
-        # ---- 藍牙 ----
+        # ---- Bluetooth ----
         elif p == "/api/bt/scan":
             bt.scan_start(int(d.get("seconds", 12)))
             self._json({"scanning": True})
@@ -276,12 +282,12 @@ class Handler(BaseHTTPRequestHandler):
             if not mac:
                 return self._json({"error": "no mac"}, 400)
             if bt.busy:
-                return self._json({"error": f"正在連線 {bt.busy}，請稍候"}, 409)
+                return self._json({"error": f"Busy connecting {bt.busy}, please wait"}, 409)
             r = bt.connect(mac)
             if r["ok"]:
                 config["bt_mac"] = mac
                 save_config()
-                out.reset()                               # 下次寫入改走新的預設 sink
+                out.reset()                               # next write goes to the new default sink
             self._json(r)
         elif p == "/api/bt/disconnect":
             mac = d.get("mac") or config.get("bt_mac")
@@ -299,7 +305,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    os.environ["RADIO_PORT"] = str(PORT)          # 給 librespot_event.py 用
+    os.environ["RADIO_PORT"] = str(PORT)          # used by librespot_event.py
     if config.get("bt_mac"):
         threading.Thread(target=bt.connect, args=(config["bt_mac"],), daemon=True).start()
     spotify.start()

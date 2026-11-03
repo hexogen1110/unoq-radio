@@ -1,4 +1,4 @@
-"""音源：網路電台（ffmpeg 解碼 HTTP / Icecast / Shoutcast 串流）。"""
+"""Source: internet radio (ffmpeg decodes HTTP / Icecast / Shoutcast streams)."""
 import logging
 import re
 import subprocess
@@ -49,19 +49,19 @@ class RadioSource:
         try:
             self._ff = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except FileNotFoundError:
-            return self._fail("找不到 ffmpeg")
+            return self._fail("ffmpeg not found")
         threading.Thread(target=self._read_stderr, args=(self._ff,), daemon=True).start()
         while not self._stop.is_set():
             raw = self._ff.stdout.read(CHUNK_BYTES)
             if not raw:
                 if not self._stop.is_set():
-                    self._fail("串流中斷或網址無效：" + self._last_err[-120:])
+                    self._fail("Stream dropped or invalid URL: " + self._last_err[-120:])
                 return
             self.state = "playing"
             try:
                 self.out.write(raw)
             except OSError:
-                return self._fail("音訊輸出失敗（檢查藍牙喇叭 / PipeWire）")
+                return self._fail("Audio output failed (check Bluetooth speaker / PipeWire)")
 
     def _fail(self, msg):
         log.error(msg)

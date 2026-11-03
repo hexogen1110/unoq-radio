@@ -1,10 +1,10 @@
-"""音源：Spotify Connect 接收端（librespot）。
+"""Source: Spotify Connect receiver (librespot).
 
-UNO Q 會出現在 Spotify App 的「裝置」清單；使用者在手機上選它播放。
-librespot --backend pipe 把解碼後的 PCM 寫到 stdout → 這裡讀進 AudioOutput。
-播放事件（歌名、暫停…）透過 --onevent 腳本 POST 回本機 /api/spotify/event。
+The UNO Q shows up in the Spotify app's device list; the user picks it on the phone.
+librespot --backend pipe writes decoded PCM to stdout → read here into AudioOutput.
+Playback events (track, pause, ...) are POSTed back to /api/spotify/event by the --onevent script.
 
-需求：Spotify Premium；UNO Q 與手機在同一個區網（mDNS / Zeroconf 探索）。
+Requires Spotify Premium; UNO Q and phone on the same LAN (mDNS / Zeroconf discovery).
 """
 import logging
 import os
@@ -24,10 +24,10 @@ class SpotifySource:
     def __init__(self, out, cfg, on_activate, event_script):
         self.out = out
         self.cfg = cfg                       # {"enabled", "device_name", "bitrate", "binary"}
-        self.on_activate = on_activate       # callback(name)：要求管理器切到 Spotify
+        self.on_activate = on_activate       # callback(name): ask the manager to switch to Spotify
         self.event_script = event_script
-        self.active = False                  # 是否為目前輸出中的音源
-        self.suppress = False                # 使用者剛切走：在收到新的 playing 事件前不搶回輸出
+        self.active = False                  # whether this is the source currently playing
+        self.suppress = False                # user just switched away: don't grab the output until a new playing event
         self.proc = None
         self.state = "idle"                  # idle / playing / paused
         self.track = {}
@@ -36,10 +36,10 @@ class SpotifySource:
         self.error = ""
         self.position_ms = 0
         self.position_ts = 0.0
-        self._gen = 0                        # 程序世代：忽略舊程序的事件 / 資料
+        self._gen = 0                        # process generation: ignore events / data from old processes
         self._lock = threading.Lock()
 
-    # ---------------- 程序管理 ----------------
+    # ---------------- Process management ----------------
     def available(self):
         return shutil.which(self.cfg.get("binary", "librespot")) is not None
 
@@ -47,7 +47,7 @@ class SpotifySource:
         if not self.cfg.get("enabled", True):
             return
         if not self.available():
-            self.error = "找不到 librespot（請參考 README 安裝）"
+            self.error = "librespot not found (see README for installation)"
             log.warning(self.error)
             return
         with self._lock:
@@ -60,7 +60,7 @@ class SpotifySource:
             cmd = [self.cfg.get("binary", "librespot"),
                    "--name", self.cfg.get("device_name", "UNO Q Radio"),
                    "--device-type", "speaker",
-                   "--backend", "pipe",                     # PCM 寫到 stdout
+                   "--backend", "pipe",                     # PCM to stdout
                    "--format", "S16",
                    "--bitrate", str(self.cfg.get("bitrate", 320)),
                    "--initial-volume", "80",
@@ -75,7 +75,7 @@ class SpotifySource:
         log.info("librespot started as '%s'", self.cfg.get("device_name"))
 
     def kick(self):
-        """中斷目前 Spotify 連線（手機端會顯示裝置已離線再重新出現）。"""
+        """Drop the current Spotify session (the phone sees the device go offline, then reappear)."""
         with self._lock:
             if self.proc and self.proc.poll() is None:
                 self.proc.terminate()
@@ -101,7 +101,7 @@ class SpotifySource:
             if gen != self._gen:
                 break
             if not self.active and not self.suppress:
-                # 手機按了播放、但目前輸出是電台 → 要求切到 Spotify（最後操作者優先）
+                # play pressed on the phone while the radio is active → switch to Spotify (last action wins)
                 self.on_activate(self.name)
             if self.active:
                 try:
@@ -120,7 +120,7 @@ class SpotifySource:
             if " ERROR " in s or "error" in s.lower()[:40]:
                 log.warning("librespot: %s", s)
 
-    # ---------------- 事件（由 /api/spotify/event 呼叫） ----------------
+    # ---------------- Events (called from /api/spotify/event) ----------------
     def handle_event(self, ev):
         if str(ev.get("UNOQ_EVENT_GEN", self._gen)) != str(self._gen):
             return

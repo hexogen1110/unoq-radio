@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# 一次性修正：WirePlumber 無頭模式藍牙 + LED Bridge socket 權限
+# One-off fix for boards installed with an older install.sh:
+# WirePlumber headless Bluetooth + LED Bridge socket permission
 set -euo pipefail
 export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 
-echo "== 1. WirePlumber：關閉 seat monitoring（無頭、沒有本機登入也啟用藍牙/ALSA）=="
+echo "== 1. WirePlumber: disable seat monitoring (enable Bluetooth without a local login) =="
 mkdir -p ~/.config/wireplumber/wireplumber.conf.d
 cat > ~/.config/wireplumber/wireplumber.conf.d/80-headless.conf <<'CONF'
-# UNO Q 沒有螢幕登入，logind seat 不是 active → 預設會停用藍牙音訊
+# The UNO Q has no local login, so the logind seat is never active → Bluetooth audio would be disabled
 wireplumber.profiles = {
   main = {
     monitor.bluez.seat-monitoring = disabled
@@ -14,8 +15,8 @@ wireplumber.profiles = {
 }
 CONF
 
-echo "== 2. LED：加入 arduino-router 群組（/var/run/arduino-router.sock 權限 root:arduino-router 660）=="
+echo "== 2. LED: join the arduino-router group (/var/run/arduino-router.sock is root:arduino-router 660) =="
 sudo usermod -aG arduino-router "$USER"
 
-echo "== 3. 重新開機讓群組生效（user manager 要重開才會拿到新群組）=="
-echo "完成。執行： sudo reboot"
+echo "== 3. Reboot so the new group applies (the systemd user manager only picks it up on restart) =="
+echo "Done. Now run: sudo reboot"

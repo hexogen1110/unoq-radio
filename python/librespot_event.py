@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""librespot --onevent 掛鉤：把事件的環境變數 POST 給本機 server。"""
+"""librespot --onevent hook: POST the event environment variables to the local server."""
 import json
 import os
 import urllib.request

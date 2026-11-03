@@ -1,7 +1,7 @@
-"""共用音訊輸出：所有音源都把 PCM（s16le / 44.1 kHz / stereo）寫進這裡。
+"""Shared audio output: every source writes PCM (s16le / 44.1 kHz / stereo) here.
 
-PCM ─┬─ FFT → 13 頻段 → 延遲對齊 → LED 矩陣 / 網頁
-     └─ 主音量 → pacat → PipeWire 預設 sink（藍牙喇叭）
+PCM ─┬─ FFT → 13 bands → delay alignment → LED matrix / web UI
+     └─ master volume → pacat → PipeWire default sink (Bluetooth speaker)
 """
 import collections
 import logging
@@ -46,14 +46,14 @@ class AudioOutput:
         self._queue = collections.deque()
         threading.Thread(target=self._led_loop, daemon=True).start()
 
-    # ---------------- 輸出 ----------------
+    # ---------------- Output ----------------
     def _open(self):
         cmd = ["pacat", "--playback", "--raw", "--format=s16le", f"--rate={SR}", f"--channels={CH}",
                "--latency-msec=150", "--client-name=UNO-Q-Radio", "--stream-name=player"]
         self._pa = subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
     def write(self, raw: bytes):
-        """寫入 PCM；會阻塞到 pacat 收下（自然以即時速度推進）。"""
+        """Write PCM; blocks until pacat accepts it (naturally paces at real-time speed)."""
         raw = raw[: len(raw) - len(raw) % FRAME_BYTES]
         if not raw:
             return
@@ -75,7 +75,7 @@ class AudioOutput:
         self._last_write = time.monotonic()
 
     def reset(self):
-        """切換喇叭 / 切換音源時呼叫：關掉 pacat，下次 write 會重開到新的預設 sink。"""
+        """Call when switching speaker / source: kill pacat so the next write reopens on the new default sink."""
         with self._wlock:
             if self._pa and self._pa.poll() is None:
                 self._pa.kill()
@@ -120,7 +120,7 @@ class AudioOutput:
                 self.levels = latest
                 self.led.bars(latest)
                 idle_sent = False
-            elif not idle_sent and now - self._last_write > 1.0:   # 暫停 / 斷流 1 秒 → 待機畫面
+            elif not idle_sent and now - self._last_write > 1.0:   # paused / stream gap > 1 s → idle animation
                 self.levels = [0] * BANDS
                 self.led.idle()
                 idle_sent = True

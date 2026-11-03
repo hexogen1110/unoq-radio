@@ -1,4 +1,4 @@
-# 板子是 Linux：腳本一律 LF，避免 Windows CRLF 造成 bash 錯誤
+# The board runs Linux: keep LF line endings so scripts survive a Windows checkout
 *.sh   text eol=lf
 *.py   text eol=lf
 *.service text eol=lf
