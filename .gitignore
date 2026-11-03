@@ -1,0 +1,6 @@
+# 板上執行時產生的設定（含藍牙 MAC、音量等）
+python/config.json
+*.tmp
+*.bak
+__pycache__/
+*.pyc

@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UNO Q Radio</title>
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --line:#2a2f3a; --fg:#e8eaf0; --mut:#8a90a0; --acc:#4da3ff; --ok:#3ecf8e; --err:#ff6b6b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, -apple-system, "Noto Sans TC", sans-serif; }
+  main { max-width:560px; margin:0 auto; padding:16px; }
+  h1 { font-size:20px; margin:4px 0 12px; display:flex; justify-content:space-between; align-items:center; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  .mut { color:var(--mut); font-size:13px; }
+  .now { font-size:17px; font-weight:600; min-height:1.5em; }
+  .title { color:var(--acc); min-height:1.4em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pill { font-size:12px; padding:2px 8px; border-radius:99px; border:1px solid var(--line); color:var(--mut); }
+  .pill.ok { color:var(--ok); border-color:var(--ok); } .pill.err { color:var(--err); border-color:var(--err); }
+  #spec { display:grid; grid-template-columns:repeat(13,1fr); gap:3px; height:96px; margin:12px 0; }
+  #spec div { display:flex; flex-direction:column-reverse; gap:2px; }
+  #spec i { flex:1; border-radius:2px; background:#1f2633; }
+  #spec i.on { background:var(--acc); }
+  .row { display:flex; gap:10px; align-items:center; }
+  button { background:#232835; color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:9px 14px; font-size:15px; cursor:pointer; }
+  button.primary { background:var(--acc); border-color:var(--acc); color:#06101f; font-weight:600; }
+  button:disabled { opacity:.5; }
+  input[type=range] { flex:1; accent-color:var(--acc); }
+  input[type=text], input[type=url] { width:100%; background:#0f1218; color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:9px; font-size:15px; }
+  ul { list-style:none; margin:0; padding:0; }
+  li.st { display:flex; align-items:center; gap:8px; padding:10px 6px; border-bottom:1px solid var(--line); cursor:pointer; }
+  li.st:last-child { border-bottom:0; }
+  li.st.active { color:var(--acc); font-weight:600; }
+  li.st span { flex:1; }
+  li.st .del { background:none; border:0; color:var(--mut); padding:4px 8px; }
+  .dev { display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line); }
+  .dev:last-child { border-bottom:0; }
+  .dev .ico { width:28px; height:28px; flex:none; color:var(--mut); }
+  .dev.cur .ico { color:var(--acc); }
+  .dev .meta { flex:1; min-width:0; }
+  .dev .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dev .sub { font-size:12px; color:var(--mut); display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .dev .acts { display:flex; gap:6px; flex:none; }
+  .dev .acts button { padding:6px 10px; font-size:13px; }
+  .sig { display:inline-flex; gap:1px; align-items:flex-end; height:10px; }
+  .sig b { width:3px; background:#3a4150; border-radius:1px; } .sig b.on { background:var(--mut); }
+  .spin { display:inline-block; width:12px; height:12px; border:2px solid var(--mut); border-top-color:transparent; border-radius:50%; animation:sp 0.8s linear infinite; vertical-align:-2px; }
+  @keyframes sp { to { transform:rotate(360deg); } }
+  .tabs { display:flex; gap:6px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:4px; margin-bottom:12px; }
+  .tabs button { flex:1; border:0; background:none; color:var(--mut); padding:8px; border-radius:8px; display:flex; gap:6px; align-items:center; justify-content:center; }
+  .tabs button.on { background:#232835; color:var(--fg); font-weight:600; }
+  .tabs .dot { width:7px; height:7px; border-radius:50%; background:var(--ok); display:none; }
+  .tabs .dot.show { display:inline-block; }
+  .np { display:flex; gap:12px; align-items:center; }
+  .np img { width:64px; height:64px; border-radius:8px; object-fit:cover; background:#232835; flex:none; }
+  .np img[src=""] { display:none; }
+  .np .txt { min-width:0; flex:1; }
+  .prog { height:3px; background:#232835; border-radius:2px; margin-top:8px; overflow:hidden; }
+  .prog i { display:block; height:100%; background:var(--acc); width:0; }
+  .src { font-size:12px; color:var(--mut); }
+  .hidden { display:none !important; }
+  ol.how { margin:6px 0 0; padding-left:20px; color:var(--mut); font-size:14px; }
+  details summary { cursor:pointer; color:var(--mut); }
+  .stack > * + * { margin-top:8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>UNO Q Radio <span id="state" class="pill">—</span></h1>
+
+  <section class="card">
+    <div class="src" id="srcLabel">正在播放</div>
+    <div class="np">
+      <img id="cover" src="" alt="">
+      <div class="txt">
+        <div class="now" id="now">未選擇音源</div>
+        <div class="title" id="title"></div>
+      </div>
+    </div>
+    <div class="prog hidden" id="prog"><i></i></div>
+    <div class="mut hidden" id="ptime" style="display:flex;justify-content:space-between"><span></span><span></span></div>
+    <div id="spec"></div>
+    <div class="row">
+      <button class="primary" id="btnPlay">▶ 播放</button>
+      <button id="btnStop">■ 停止</button>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <span class="mut">音量</span>
+      <input type="range" id="vol" min="0" max="100">
+      <span id="volv" style="width:2.5em;text-align:right"></span>
+    </div>
+    <div class="mut" id="err" style="color:var(--err)"></div>
+  </section>
+
+  <div class="tabs">
+    <button id="tabRadio" class="on">網路電台 <span class="dot" id="dotRadio"></span></button>
+    <button id="tabSpotify">Spotify <span class="dot" id="dotSpotify"></span></button>
+  </div>
+
+  <section class="card hidden" id="paneSpotify">
+    <div class="row" style="justify-content:space-between">
+      <div><div class="mut">Spotify Connect</div><div id="spDev">—</div></div>
+      <span id="spPill" class="pill">—</span>
+    </div>
+    <div id="spBody"></div>
+    <ol class="how" id="spHow">
+      <li>手機和 UNO Q 連同一個 Wi-Fi</li>
+      <li>開 Spotify App → 播放任何歌曲 → 點下方「裝置」圖示</li>
+      <li>選擇 <b id="spName2">UNO Q Radio</b>（需要 Spotify Premium）</li>
+    </ol>
+    <div class="row" style="margin-top:12px; flex-wrap:wrap">
+      <button id="btnSpKick">中斷 Spotify 連線</button>
+    </div>
+    <details style="margin-top:10px">
+      <summary>設定</summary>
+      <div class="stack" style="margin-top:8px">
+        <label class="mut">在 Spotify 顯示的裝置名稱</label>
+        <input type="text" id="spNameIn" maxlength="40">
+        <label class="mut row" style="gap:6px"><input type="checkbox" id="spEnabled"> 啟用 Spotify Connect</label>
+        <button id="btnSpSave">儲存並重新啟動</button>
+      </div>
+    </details>
+  </section>
+
+  <section class="card" id="paneRadio">
+    <div class="mut" style="margin-bottom:4px">電台</div>
+    <ul id="list"></ul>
+    <details style="margin-top:10px">
+      <summary>新增電台</summary>
+      <div class="stack" style="margin-top:8px">
+        <input type="text" id="newName" placeholder="名稱">
+        <input type="url" id="newUrl" placeholder="串流網址 http(s)://…（MP3 / AAC）">
+        <button id="btnAdd">新增</button>
+      </div>
+    </details>
+  </section>
+
+  <section class="card">
+    <div class="row" style="justify-content:space-between">
+      <div><div class="mut">藍牙音訊輸出</div><div id="bt">—</div></div>
+      <span id="btPill" class="pill">—</span>
+    </div>
+    <div class="row" style="margin-top:10px; flex-wrap:wrap">
+      <button class="primary" id="btnBtScan">搜尋藍牙裝置</button>
+      <label class="mut row" style="gap:6px"><input type="checkbox" id="audioOnly" checked> 只顯示音訊裝置</label>
+    </div>
+    <div class="mut" id="btHint" style="margin-top:6px"></div>
+    <ul id="btList" style="margin-top:4px"></ul>
+    <details style="margin-top:10px">
+      <summary>進階：頻譜延遲（對齊藍牙延遲）</summary>
+      <div class="row" style="margin-top:8px">
+        <input type="range" id="delay" min="0" max="800" step="10">
+        <span id="delayv" style="width:4em;text-align:right"></span>
+      </div>
+      <div class="mut">LED 跳得比聲音早就調大；藍牙喇叭通常 150–300 ms。</div>
+    </details>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const api = (path, body) => fetch(path, body === undefined ? {} : {
+  method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)
+}).then(r => r.json());
+
+let selected = null, stations = [], st = {};
+
+// 頻譜格子 13 × 8
+const spec = $("spec");
+for (let c = 0; c < 13; c++) {
+  const col = document.createElement("div");
+  for (let r = 0; r < 8; r++) col.appendChild(document.createElement("i"));
+  spec.appendChild(col);
+}
+function drawSpec(levels) {
+  [...spec.children].forEach((col, c) =>
+    [...col.children].forEach((cell, r) => cell.classList.toggle("on", r < (levels[c] || 0))));
+}
+
+function renderList() {
+  const cur = st.source === "radio" && st.radio && st.radio.station && st.radio.station.id;
+  $("list").innerHTML = "";
+  stations.forEach(s => {
+    const li = document.createElement("li");
+    li.className = "st" + (s.id === (selected ?? cur) ? " active" : "");
+    li.innerHTML = `<span></span><button class="del" title="刪除">✕</button>`;
+    li.querySelector("span").textContent = s.name;
+    li.onclick = () => { selected = s.id; api("/api/play", {id: s.id}).then(upd); };
+    li.querySelector(".del").onclick = e => {
+      e.stopPropagation();
+      if (confirm(`刪除「${s.name}」？`)) api("/api/stations/delete", {id: s.id}).then(l => { stations = l; renderList(); });
+    };
+    $("list").appendChild(li);
+  });
+}
+
+const RSTATE = {stopped: "停止", connecting: "連線中…", playing: "播放中", error: "錯誤"};
+const SSTATE = {idle: "待命", playing: "播放中", paused: "暫停"};
+let volDragging = false, delayDragging = false, tab = null, spFormInit = false;
+const fmt = ms => { const t = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+
+function setTab(t) {
+  tab = t;
+  $("tabRadio").classList.toggle("on", t === "radio");
+  $("tabSpotify").classList.toggle("on", t === "spotify");
+  $("paneRadio").classList.toggle("hidden", t !== "radio");
+  $("paneSpotify").classList.toggle("hidden", t !== "spotify");
+}
+$("tabRadio").onclick = () => setTab("radio");
+$("tabSpotify").onclick = () => setTab("spotify");
+
+function upd(s) {
+  st = s;
+  const r = s.radio, sp = s.spotify;
+  if (tab === null) setTab(s.source === "spotify" ? "spotify" : "radio");   // 第一次載入跟著目前音源
+  $("dotRadio").classList.toggle("show", s.source === "radio" && r.state === "playing");
+  $("dotSpotify").classList.toggle("show", s.source === "spotify" && sp.state === "playing");
+
+  let label = "—", ok = false, err = false, playing = false;
+  $("prog").classList.add("hidden"); $("ptime").classList.add("hidden"); $("cover").src = "";
+  if (s.source === "spotify") {
+    const t = sp.track || {};
+    $("srcLabel").textContent = "Spotify" + (sp.client ? ` · 由 ${sp.client} 控制` : "");
+    $("now").textContent = t.name || "Spotify";
+    $("title").textContent = [t.artists, t.album].filter(Boolean).join(" — ");
+    if (t.cover) $("cover").src = t.cover;
+    if (t.duration_ms) {
+      $("prog").classList.remove("hidden");
+      $("prog").firstElementChild.style.width = Math.min(100, sp.position_ms / t.duration_ms * 100) + "%";
+      $("ptime").classList.remove("hidden");
+      $("ptime").children[0].textContent = fmt(sp.position_ms);
+      $("ptime").children[1].textContent = fmt(t.duration_ms);
+    }
+    label = SSTATE[sp.state] || sp.state; playing = sp.state === "playing"; ok = playing;
+    $("err").textContent = sp.error || "";
+  } else {
+    $("srcLabel").textContent = "網路電台";
+    $("now").textContent = r.station ? r.station.name : "未選擇音源";
+    $("title").textContent = r.title || "";
+    label = RSTATE[r.state] || r.state; playing = r.state === "playing"; ok = playing; err = r.state === "error";
+    $("err").textContent = r.error || "";
+  }
+  $("state").textContent = label;
+  $("state").className = "pill" + (ok ? " ok" : err ? " err" : "");
+  $("btnPlay").classList.toggle("hidden", s.source === "spotify");    // Spotify 由手機控制播放
+  if (!volDragging) { $("vol").value = s.volume; $("volv").textContent = s.volume; }
+  if (!delayDragging) { $("delay").value = s.display_delay_ms; $("delayv").textContent = s.display_delay_ms + " ms"; }
+  drawSpec(playing ? s.levels : []);
+  renderList();
+  renderSpotify(sp, s.source === "spotify");
+}
+
+function renderSpotify(sp, active) {
+  $("spDev").textContent = sp.device_name;
+  $("spName2").textContent = sp.device_name;
+  let pill = "—", cls = "";
+  if (!sp.installed) { pill = "未安裝"; cls = " err"; }
+  else if (!sp.enabled) { pill = "已停用"; }
+  else if (!sp.running) { pill = "啟動中…"; }
+  else if (active && sp.state !== "idle") { pill = SSTATE[sp.state]; cls = " ok"; }
+  else { pill = "可被選取"; cls = " ok"; }
+  $("spPill").textContent = pill; $("spPill").className = "pill" + cls;
+  $("spHow").classList.toggle("hidden", active && sp.state !== "idle");
+  $("spBody").textContent = !sp.installed ? "UNO Q 上找不到 librespot，請依 README 安裝。"
+    : (sp.user ? `已登入：${sp.user}` : "");
+  $("spBody").className = "mut";
+  if (!spFormInit) { $("spNameIn").value = sp.device_name; $("spEnabled").checked = sp.enabled; spFormInit = true; }
+}
+
+$("btnSpKick").onclick = () => api("/api/spotify/kick", {}).then(() => setTimeout(poll, 300));
+$("btnSpSave").onclick = () => api("/api/spotify/config", {device_name: $("spNameIn").value, enabled: $("spEnabled").checked})
+  .then(() => { spFormInit = false; });
+
+async function poll() {
+  try { upd(await api("/api/status")); } catch (e) { $("state").textContent = "離線"; }
+  const live = st.source && ((st.source === "radio" && st.radio.state === "playing") || (st.source === "spotify" && st.spotify.state === "playing"));
+  clearTimeout(poll.t); poll.t = setTimeout(poll, live ? 120 : 1000);
+}
+
+// ---------------- 藍牙 ----------------
+const ICON_SPK = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><circle cx="12" cy="14.5" r="3.5"/><circle cx="12" cy="7" r="1.2"/></svg>';
+const ICON_HP  = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>';
+const ICON_BT  = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg>';
+const iconFor = d => /headset|headphone/.test(d.icon) ? ICON_HP : d.audio ? ICON_SPK : ICON_BT;
+const sigBars = rssi => {
+  if (rssi == null) return "";
+  const n = rssi > -60 ? 4 : rssi > -70 ? 3 : rssi > -80 ? 2 : 1;
+  return `<span class="sig" title="${rssi} dBm">${[4,6,8,10].map((h,i)=>`<b class="${i<n?"on":""}" style="height:${h}px"></b>`).join("")}</span>`;
+};
+let btData = {devices: [], scanning: false, busy: ""};
+let btTimer = null;
+
+function btHeader(b) {
+  $("bt").textContent = b.mac ? `${b.name || "(未命名)"} · ${b.mac}` : "尚未設定，請搜尋並連線";
+  $("btPill").textContent = b.connected ? "已連線" : (b.mac ? "未連線" : "—");
+  $("btPill").className = "pill" + (b.connected ? " ok" : b.mac ? " err" : "");
+}
+const btRefresh = () => api("/api/bt/status").then(btHeader);
+
+function renderBt() {
+  const {devices, scanning, busy} = btData;
+  const onlyAudio = $("audioOnly").checked;
+  const list = devices.filter(d => !onlyAudio || d.audio || d.paired);
+  const hidden = devices.length - list.length;
+  $("btnBtScan").disabled = scanning;
+  $("btnBtScan").innerHTML = scanning ? '<span class="spin"></span> 搜尋中…' : "搜尋藍牙裝置";
+  $("btHint").textContent = scanning ? "請讓喇叭進入配對模式（通常長按藍牙鍵到燈號快閃）"
+    : (hidden ? `另有 ${hidden} 個非音訊裝置已隱藏` : (devices.length ? "" : "按「搜尋藍牙裝置」開始"));
+
+  const ul = $("btList"); ul.innerHTML = "";
+  list.forEach(d => {
+    const li = document.createElement("li");
+    li.className = "dev" + (d.current ? " cur" : "");
+    const badges = [d.connected ? '<span class="pill ok">已連線</span>' : "", d.paired ? '<span class="pill">已配對</span>' : ""].join("");
+    li.innerHTML = `${iconFor(d)}
+      <div class="meta"><div class="nm"></div><div class="sub"><span>${d.mac}</span>${sigBars(d.rssi)}${badges}</div></div>
+      <div class="acts"></div>`;
+    li.querySelector(".nm").textContent = d.name || "(未命名裝置)";
+    const acts = li.querySelector(".acts");
+    const btn = (label, cls, fn) => { const b = document.createElement("button"); b.textContent = label; if (cls) b.className = cls; b.onclick = fn; b.disabled = !!busy; acts.appendChild(b); return b; };
+
+    if (d.mac === busy) {
+      acts.innerHTML = '<span class="mut"><span class="spin"></span> 連線中…</span>';
+    } else if (d.connected) {
+      btn("中斷", "", () => api("/api/bt/disconnect", {mac: d.mac}).then(btPoll));
+    } else {
+      btn(d.paired ? "連線" : "配對並連線", "primary", () => btConnect(d));
+    }
+    if (d.paired && d.mac !== busy)
+      btn("忘記", "", () => { if (confirm(`忘記「${d.name || d.mac}」？之後需重新配對。`)) api("/api/bt/remove", {mac: d.mac}).then(btPoll); });
+    ul.appendChild(li);
+  });
+}
+
+async function btConnect(d) {
+  btData.busy = d.mac; renderBt();
+  const poller = setInterval(btPoll, 1000);                 // 連線期間持續更新畫面
+  try {
+    const r = await api("/api/bt/connect", {mac: d.mac});
+    if (r.error) alert(r.error);
+    else if (!r.ok) alert((r.message || "連線失敗") + "\n\n" + (r.log || ""));
+    else if (r.message) alert(r.message);
+  } finally {
+    clearInterval(poller); btPoll(); btRefresh();
+  }
+}
+
+async function btPoll() {
+  clearTimeout(btTimer);
+  try { btData = await api("/api/bt/devices"); renderBt(); } catch (e) {}
+  btTimer = setTimeout(btPoll, (btData.scanning || btData.busy) ? 1000 : 10000);
+}
+
+$("btnBtScan").onclick = async () => {
+  await api("/api/bt/scan", {seconds: 12});
+  btData.scanning = true; renderBt(); btPoll();
+};
+$("audioOnly").onchange = renderBt;
+
+$("btnPlay").onclick = () => {
+  const id = selected ?? (st.radio && st.radio.station && st.radio.station.id) ?? (stations[0] && stations[0].id);
+  if (id) api("/api/play", {id}).then(upd);
+};
+$("btnStop").onclick = () => api("/api/stop", {}).then(upd);
+
+$("vol").oninput = e => { volDragging = true; $("volv").textContent = e.target.value; };
+$("vol").onchange = e => { api("/api/volume", {volume: +e.target.value}).finally(() => volDragging = false); };
+$("delay").oninput = e => { delayDragging = true; $("delayv").textContent = e.target.value + " ms"; };
+$("delay").onchange = e => { api("/api/delay", {ms: +e.target.value}).finally(() => delayDragging = false); };
+
+$("btnAdd").onclick = () => {
+  api("/api/stations", {name: $("newName").value, url: $("newUrl").value}).then(r => {
+    if (r.error) return alert(r.error);
+    stations = r; $("newName").value = $("newUrl").value = ""; renderList();
+  });
+};
+
+api("/api/stations").then(l => { stations = l; renderList(); });
+btRefresh(); setInterval(btRefresh, 10000); btPoll();
+poll();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+[Unit]
+Description=UNO Q Internet Radio (web + BT audio + LED spectrum)
+After=pipewire-pulse.service wireplumber.service network-online.target
+Wants=pipewire-pulse.service wireplumber.service
+
+[Service]
+WorkingDirectory=@APP_DIR@/python
+ExecStart=/usr/bin/python3 @APP_DIR@/python/main.py
+Restart=on-failure
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target
